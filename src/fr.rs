@@ -47,6 +47,10 @@ pub fn fr_to_le_bytes(value: &Fr) -> [u8; 32] {
 ///
 /// This is the exact decomposition `TributeDraft._bindingHash` uses to
 /// fit a `uint256` into two BN254 field elements without overflow.
+///
+/// **Not** the right helper for secp256k1 coordinates — those use a
+/// different scheme (LE-decode each 16-byte half), implemented privately
+/// in `ownership.rs`.
 pub fn split_u256_be_into_limbs(bytes: &[u8; 32]) -> [Fr; 2] {
     let mut lo_le = [0u8; 32];
     for (i, b) in bytes[16..32].iter().rev().enumerate() {
@@ -60,13 +64,6 @@ pub fn split_u256_be_into_limbs(bytes: &[u8; 32]) -> [Fr; 2] {
         Fr::from_le_bytes_mod_order(&lo_le),
         Fr::from_le_bytes_mod_order(&hi_le),
     ]
-}
-
-/// Split a 32-byte big-endian secp256k1 coordinate into two 128-bit `Fr`
-/// limbs: `[lo, hi]`. Used by the ownership formula to fit a 256-bit
-/// curve coordinate into two BN254 field elements.
-pub fn split_coordinate_be_into_limbs(bytes: &[u8; 32]) -> [Fr; 2] {
-    split_u256_be_into_limbs(bytes)
 }
 
 #[cfg(test)]

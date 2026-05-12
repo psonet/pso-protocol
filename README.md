@@ -19,6 +19,18 @@ equality is checked in CI as a sanity backstop on top of the structural
 guarantee that the precompiles call into the same Rust function as
 off-chain consumers.
 
+## Related repos
+
+One of four sibling repos in the post-extraction layout:
+
+- **`pso-protocol`** *(this repo)* — consensus-binding primitives.
+- [`pso-zk-circuits`](../pso-zk-circuits) — Noir circuits + FFI prover.
+- [`pso-integration`](../pso-integration) — client-side integration:
+  UniFFI wallet bindings, SRA registrar, CLI, VDF FFI (planned), and
+  the L2-interaction surface clients use to talk to the chain.
+- [`pso-chain`](../pso-chain) — PSO L2 chain (registers this crate's
+  precompiles, links `PsoProtocol.sol` into its contracts).
+
 ## Why this crate exists
 
 Before extraction, the same Poseidon-based formulas were reimplemented
@@ -40,7 +52,7 @@ the release process you have to coordinate.
 | ------------ | ----------------------------------------- | ---------------------------- |
 | `hash`       | Internal Poseidon building blocks         | N/A — changing these breaks everything below. |
 | `binding`    | On-chain precompile `0x0210`              | Yes (coordinated chain + wallet release). |
-| `nft`        | On-chain precompiles `0x0211..0x0214`     | Yes (coordinated chain + wallet release). |
+| `nft`        | On-chain precompiles `0x0211`, `0x0212`   | Yes (coordinated chain + wallet release). |
 | `ownership`  | The ZK circuit (Noir source)              | Yes — new ACIR → new canonical descriptor. Not exposed in Solidity. |
 | `witness`    | The ZK circuit public-input layout        | Yes (coordinated circuit + wallet release). |
 | `merkle`     | The ZK circuit Merkle-path semantics      | Yes (coordinated circuit release). |
@@ -69,11 +81,9 @@ different upgrade processes. **Do not try to unify them.**
 0x0203  CIRCUIT_INFO                       (existing — pso-chain)
 
 0x0210  PSO_PROTOCOL_BINDING_HASH          (this crate)
-0x0211  PSO_PROTOCOL_TD_ID                 (this crate)
-0x0212  PSO_PROTOCOL_TD_HASH               (this crate)
-0x0213  PSO_PROTOCOL_SU_ID                 (this crate)
-0x0214  PSO_PROTOCOL_SU_HASH               (this crate)
-... 0x0215..0x021F reserved for future named formulas
+0x0211  PSO_PROTOCOL_TD_HASH               (this crate)
+0x0212  PSO_PROTOCOL_SU_HASH               (this crate)
+... 0x0213..0x021F reserved for future named formulas
 ```
 
 `0x0202` (raw Poseidon) is kept for third-party L2 apps that need
@@ -82,6 +92,13 @@ The pso-protocol precompiles are **additive, not replacement**.
 
 Ownership is **not exposed as a precompile** — the chain never recomputes
 it. The proof's public-input vector carries it.
+
+**TD-id and SU-id likewise have no precompile.** TD-id's formula
+(`Poseidon2(owner, wwd)`) consumes an `owner` that already bakes in
+off-chain nonce randomness, and SU ids are random by construction —
+in both cases the ZK proof is the only legitimate witness, so
+on-chain recomputation adds nothing. The Rust `compute_tribute_draft_id`
+function stays in this crate for wallet use at mint time.
 
 ## Usage
 
