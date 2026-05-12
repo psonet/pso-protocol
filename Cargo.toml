@@ -1,0 +1,33 @@
+[package]
+name        = "pso-protocol"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["PSO Lab"]
+license     = "MIT"
+repository  = "https://github.com/psonet/pso-protocol"
+description = "PSO consensus-binding primitives (hash formulas, witness types) shared by wallets, chain precompiles, and Solidity contracts"
+readme      = "README.md"
+keywords    = ["pso", "poseidon", "bn254", "zero-knowledge", "consensus"]
+categories  = ["cryptography"]
+
+# v0.1 ships std-only because the underlying pso-poseidon crate is not yet
+# no_std. The feature shape is laid out for a future no_std story: every
+# upstream dependency that supports it is declared `default-features = false`
+# and re-enabled through the `std` feature. When pso-poseidon goes no_std,
+# this crate can flip `default = []` without touching the public API.
+[features]
+default = ["std"]
+std = [
+    "thiserror/std",
+    "ark-ff/std",
+    "ark-bn254/std",
+]
+
+[dependencies]
+ark-bn254 = { version = "0.5", default-features = false, features = ["curve"] }
+ark-ff    = { version = "0.5", default-features = false }
+pso-poseidon = "0.2"
+thiserror = { version = "2", default-features = false }
+
+[dev-dependencies]
+hex = "0.4"

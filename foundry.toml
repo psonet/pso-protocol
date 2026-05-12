@@ -1,0 +1,23 @@
+[profile.default]
+src = "solidity"
+test = "solidity"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 200
+
+# Strict invariants for a consensus-binding library: no implicit hashing
+# changes, no silent solc surprises.
+bytecode_hash = "none"
+cbor_metadata = false
+
+remappings = [
+    "pso-protocol/=solidity/",
+]
+
+[fmt]
+line_length = 100
+tab_width = 4
+quote_style = "double"
+number_underscore = "thousands"
