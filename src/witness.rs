@@ -105,13 +105,30 @@ impl fmt::Debug for OwnershipPrivateInputs {
     }
 }
 
-/// Public inputs for ownership-only proof.
+/// Public inputs for the §4.2 single-NFT ownership proof.
+///
+/// `nft_hash` was added in the §4.2 redesign — the signature payload
+/// moved from `ownership.to_le_bytes()` to
+/// `Poseidon2(nft_hash, nonce).to_le_bytes()`, so the circuit now
+/// needs the entity hash as a public input so the verifier can
+/// recompute the expected pre-hash and bind the proof to a specific
+/// NFT.
+///
+/// `signature` is **logically private** in the §4.2 circuit (the
+/// circuit's `main()` declares it as a private parameter). It lives
+/// in this struct for historical / serialization reasons — the
+/// witness map builder routes it to the private witness slot.
 #[derive(Clone, Debug)]
 pub struct OwnershipPublicInputs {
-    /// Hash of the public key (ownership proof output), 32-byte LE Fr.
+    /// Poseidon5 owner commitment (ownership proof output), 32-byte LE Fr.
     pub ownership: [u8; 32],
-    /// secp256k1 ECDSA signature of the ownership field, 64 bytes
-    /// (`r || s`).
+    /// Per-NFT entity hash. 32-byte LE Fr. Public.
+    pub nft_hash: [u8; 32],
+    /// secp256k1 ECDSA signature over
+    /// `Poseidon2(nft_hash, nonce).to_le_bytes()`, 64 bytes
+    /// (`r || s`). **Private witness** — exposed in this struct for
+    /// convenience but routed to the private slot by the witness
+    /// builders.
     pub signature: [u8; 64],
 }
 
@@ -150,12 +167,19 @@ impl fmt::Debug for FullProofPrivateInputs {
 }
 
 /// Public inputs for the full proof circuit (ownership + inclusion).
+///
+/// The `nft_hash` field deliberately lives inside the embedded
+/// `OwnershipPublicInputs` rather than at the top level — there is
+/// only one entity hash per proof, and the §4.2 ownership constraint
+/// already binds the signature to it. Earlier revisions duplicated
+/// it at both levels; that was a red flag and got removed.
 #[derive(Clone, Debug)]
 pub struct FullProofPublicInputs {
-    /// Ownership public inputs (ownership hash, signature).
+    /// Ownership public inputs (owner commitment, NFT hash, signature).
+    /// `ownership.nft_hash` is the single source of truth for the
+    /// entity hash; the inclusion check below resolves the Merkle
+    /// path against this same value.
     pub ownership: OwnershipPublicInputs,
-    /// Hash of the NFT to prove inclusion for, 32-byte LE Fr.
-    pub entity_hash: [u8; 32],
     /// Merkle root (inclusion proof output), 32-byte LE Fr.
     pub merkle_root: [u8; 32],
 }
@@ -260,6 +284,7 @@ mod tests {
             },
             public_inputs: OwnershipPublicInputs {
                 ownership: [0u8; 32],
+                nft_hash: [0u8; 32],
                 signature: [0u8; 64],
             },
         };
@@ -284,16 +309,16 @@ mod tests {
             public_inputs: FullProofPublicInputs {
                 ownership: OwnershipPublicInputs {
                     ownership: [0u8; 32],
+                    nft_hash: [0u8; 32],
                     signature: [0u8; 64],
                 },
-                entity_hash: [0u8; 32],
                 merkle_root: [0u8; 32],
             },
         };
         let cloned = witness.clone();
         assert_eq!(
-            cloned.public_inputs.entity_hash,
-            witness.public_inputs.entity_hash
+            cloned.public_inputs.ownership.nft_hash,
+            witness.public_inputs.ownership.nft_hash
         );
         assert_eq!(cloned.private_inputs.merkle_path.len(), 1);
     }
