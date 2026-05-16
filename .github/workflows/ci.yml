@@ -3,11 +3,24 @@ name: CI
 on:
   push:
     branches: [ main ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ main ]
-  release:
-    types: [ published ]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing tag to (re-)release (e.g. "v0.1.0"). Empty input
+          runs the normal main pipeline.
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -132,19 +145,78 @@ jobs:
       - name: Run cross-side equality test
         run: cargo test --test cross_side_equality --all-features
 
+  # ----------------------------------------------------------------
+  # Version bump + tag. Runs after every check on `push: main` (PR
+  # runs and tag-push runs skip). Cog inspects the conventional-
+  # commit log since the last tag and creates a `chore(version):
+  # vX.Y.Z` commit + matching tag if `feat/fix/breaking` commits
+  # have landed.
+  # ----------------------------------------------------------------
+  tag:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    needs: [lint, test, forge, cross_side]
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore(version):') &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cocogitto bump
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: "github-actions[bot]"
+          git-user-email: "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve created tag (if any)
+        id: bump
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at HEAD | grep '^v' | head -n1 || true)"
+          echo "tag=${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # ----------------------------------------------------------------
+  # Publish. Fires on (a) a fresh cog-pushed tag in the run above,
+  # or (b) a manual tag push / workflow_dispatch with `tag` input.
+  # The "no new bump" case (tag job runs but creates no tag) cleanly
+  # short-circuits via the `tag.outputs.tag != ''` guard.
+  # ----------------------------------------------------------------
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: [lint, test, forge, cross_side]
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    needs: [tag]
+    if: |
+      always() &&
+      (
+        (needs.tag.result == 'success' && needs.tag.outputs.tag != '') ||
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+      )
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Check out the freshly-created tag (or the manually-named
+          # one) so cargo publish ships the bumped Cargo.toml the
+          # `tag` job's cog ran wrote, not the pre-bump HEAD.
+          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: cargo
-
-      - name: Run tests
-        run: cargo test --verbose --all-features
 
       - name: Publish to crates.io
         env:
