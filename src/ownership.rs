@@ -41,11 +41,7 @@ pub fn compute_ownership(pk_x: Fr, pk_y: Fr, nonce: Fr) -> Result<Fr, ProtocolEr
 /// Alias retained for forward-compat with `pso-zk-circuit-noir`
 /// testing helpers that import a Grumpkin-flavored name. Same body
 /// as [`compute_ownership`].
-pub fn compute_ownership_grumpkin(
-    pk_x: Fr,
-    pk_y: Fr,
-    nonce: Fr,
-) -> Result<Fr, ProtocolError> {
+pub fn compute_ownership_grumpkin(pk_x: Fr, pk_y: Fr, nonce: Fr) -> Result<Fr, ProtocolError> {
     compute_ownership(pk_x, pk_y, nonce)
 }
 
