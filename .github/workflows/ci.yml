@@ -101,6 +101,15 @@ jobs:
           version: stable
       - name: Show forge version
         run: forge --version
+      # forge-std is referenced by solidity/PsoProtocol.t.sol but is
+      # not vendored as a submodule. Mirror pso-chain's lightweight
+      # clone-on-CI pattern (mise's `setup:contracts` task) so the
+      # repo doesn't carry a heavy lib/ tree.
+      - name: Install forge-std
+        run: |
+          if [ ! -d lib/forge-std ]; then
+            git clone --depth 1 https://github.com/foundry-rs/forge-std.git lib/forge-std
+          fi
       - name: Run forge fmt check
         run: forge fmt --check solidity
       - name: Run forge build

@@ -55,16 +55,12 @@ library PsoProtocol {
     /// @param  tributeDraftId The TD id being bound (as `uint256`).
     /// @param  chainId        The chain id of the verifying network.
     /// @return The 32-byte BN254 Fr digest, big-endian.
-    function computeBindingHash(
-        address sender,
-        uint256 tributeDraftId,
-        uint256 chainId
-    ) internal view returns (bytes32) {
-        bytes memory input = abi.encodePacked(
-            uint256(uint160(sender)),
-            tributeDraftId,
-            chainId
-        );
+    function computeBindingHash(address sender, uint256 tributeDraftId, uint256 chainId)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes memory input = abi.encodePacked(uint256(uint160(sender)), tributeDraftId, chainId);
         (bool ok, bytes memory ret) = BINDING_HASH_PRECOMPILE.staticcall(input);
         if (!ok || ret.length != 32) revert PsoProtocolPrecompileFailed(BINDING_HASH_PRECOMPILE);
         return bytes32(ret);

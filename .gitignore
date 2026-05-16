@@ -6,3 +6,4 @@ Cargo.lock
 .serena
 .claude/settings.local.json
 .DS_Store
+lib/

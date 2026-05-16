@@ -16,27 +16,36 @@ import {PsoProtocol} from "./PsoProtocol.sol";
 contract PsoProtocolTest is Test {
     /// Encoded input the wrapper must send to `0x0210`:
     /// `abi.encodePacked(uint256(uint160(sender)), tdid, chainId)` = 96 bytes.
-    function _expectedBindingInput(
-        address sender,
-        uint256 tdid,
-        uint256 chainId
-    ) internal pure returns (bytes memory) {
+    function _expectedBindingInput(address sender, uint256 tdid, uint256 chainId)
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encodePacked(uint256(uint160(sender)), tdid, chainId);
+    }
+
+    /// `external` thunk so revert-expecting tests can drive the library
+    /// through a real call boundary. `PsoProtocol.computeBindingHash` is
+    /// `internal` (library-inlined), so `vm.expectRevert` cannot observe
+    /// the revert when the test contract calls it directly — the revert
+    /// happens inside the same call frame as the test itself.
+    function externalComputeBindingHash(address sender, uint256 tdid, uint256 chainId)
+        external
+        view
+        returns (bytes32)
+    {
+        return PsoProtocol.computeBindingHash(sender, tdid, chainId);
     }
 
     function test_bindingHash_wrapper_passes_correct_input_and_returns_precompile_output() public {
         address sender = address(0xCafe);
         uint256 tdid = uint256(0x1234567890abcdef);
-        uint256 chainId = 31337;
+        uint256 chainId = 31_337;
 
         bytes memory expectedInput = _expectedBindingInput(sender, tdid, chainId);
         bytes32 expectedOut = bytes32(uint256(0xfeedface));
 
-        vm.mockCall(
-            PsoProtocol.BINDING_HASH_PRECOMPILE,
-            expectedInput,
-            abi.encode(expectedOut)
-        );
+        vm.mockCall(PsoProtocol.BINDING_HASH_PRECOMPILE, expectedInput, abi.encode(expectedOut));
 
         bytes32 got = PsoProtocol.computeBindingHash(sender, tdid, chainId);
         assertEq(got, expectedOut, "wrapper did not return precompile output unchanged");
@@ -60,6 +69,6 @@ contract PsoProtocolTest is Test {
                 PsoProtocol.BINDING_HASH_PRECOMPILE
             )
         );
-        PsoProtocol.computeBindingHash(sender, tdid, chainId);
+        this.externalComputeBindingHash(sender, tdid, chainId);
     }
 }
