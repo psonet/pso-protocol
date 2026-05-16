@@ -1,0 +1,55 @@
+name: release
+
+# Cog-driven auto-release. Mirrors the `tag:` job in `psonet/pso-chain`
+# and `psonet/pso-integration`: every push to `main` runs `cog bump --auto`,
+# which inspects the conventional-commit log since the last tag and
+# (a) creates a `chore(version): vX.Y.Z` commit with the bumped Cargo.toml
+#     version (via cog.toml's pre_bump_hooks), and
+# (b) creates and pushes the matching `vX.Y.Z` tag (via post_bump_hooks).
+#
+# The existing `release: types: [published]`-triggered `publish:` job in
+# `ci.yml` still handles crates.io publishing — a maintainer creates a
+# GitHub Release from the cog-pushed tag to fire it.
+
+on:
+  push:
+    branches: [main]
+
+# Don't auto-bump the auto-bump. Concurrency group is per-ref so a
+# rapid push series serializes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    # Skip on cog's own version-bump commits (they have message
+    # `chore(version): vX.Y.Z`) and on opt-out `[skip ci]` commits.
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore(version):') &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cocogitto bump
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: "github-actions[bot]"
+          git-user-email: "41898282+github-actions[bot]@users.noreply.github.com"
