@@ -27,9 +27,45 @@ env:
   FOUNDRY_PROFILE: default
 
 jobs:
+  # ----------------------------------------------------------------
+  # Mode prelude. Every other job's `if:` reads `release_tag`.
+  # Non-empty when this run is a release-only path (tag push or
+  # workflow_dispatch with `tag` input). Empty otherwise — the
+  # normal "ran on main" / "PR" pipeline.
+  # ----------------------------------------------------------------
+  resolve:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.r.outputs.release_tag }}
+    steps:
+      - id: r
+        run: |
+          set -euo pipefail
+          tag=""
+          case "${{ github.event_name }}" in
+            push)
+              if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+                tag="${{ github.ref_name }}"
+              fi
+              ;;
+            workflow_dispatch)
+              tag='${{ inputs.tag }}'
+              ;;
+          esac
+          echo "release_tag=${tag}"
+          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # ----------------------------------------------------------------
+  # Test jobs — run on PR + push:main only. Skip on the release-only
+  # path (tag push / workflow_dispatch with tag input): the
+  # underlying main commit already ran them before cog cut the tag.
+  # ----------------------------------------------------------------
   lint:
     name: Lint and Format Check
     runs-on: ubuntu-latest
+    needs: [resolve]
+    if: needs.resolve.outputs.release_tag == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -71,7 +107,8 @@ jobs:
   test:
     name: Rust Tests
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [resolve, lint]
+    if: needs.resolve.outputs.release_tag == ''
     strategy:
       matrix:
         rust: [stable, beta]
@@ -106,7 +143,8 @@ jobs:
   forge:
     name: Solidity Tests
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [resolve, lint]
+    if: needs.resolve.outputs.release_tag == ''
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
@@ -133,7 +171,8 @@ jobs:
   cross_side:
     name: Cross-side equality (Rust ↔ Solidity)
     runs-on: ubuntu-latest
-    needs: [test, forge]
+    needs: [resolve, test, forge]
+    if: needs.resolve.outputs.release_tag == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -155,8 +194,13 @@ jobs:
   tag:
     name: Bump version & tag
     runs-on: ubuntu-latest
-    needs: [lint, test, forge, cross_side]
+    needs: [resolve, lint, test, forge, cross_side]
+    # Skip when we're already in re-release mode (tag-push or
+    # workflow_dispatch with a tag input): cog has nothing to do
+    # and `publish`/`github-release` fire directly off
+    # `resolve.outputs.release_tag`.
     if: |
+      needs.resolve.outputs.release_tag == '' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       !startsWith(github.event.head_commit.message, 'chore(version):') &&
@@ -199,13 +243,12 @@ jobs:
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: [tag]
+    needs: [resolve, tag]
     if: |
       always() &&
       (
         (needs.tag.result == 'success' && needs.tag.outputs.tag != '') ||
-        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-        (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+        needs.resolve.outputs.release_tag != ''
       )
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +256,7 @@ jobs:
           # Check out the freshly-created tag (or the manually-named
           # one) so cargo publish ships the bumped Cargo.toml the
           # `tag` job's cog ran wrote, not the pre-bump HEAD.
-          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref }}
+          ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: cargo
@@ -237,24 +280,23 @@ jobs:
   github-release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: [tag, publish]
+    needs: [resolve, tag, publish]
     if: |
       always() &&
       (
         (needs.tag.result == 'success' && needs.tag.outputs.tag != '') ||
-        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-        (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+        needs.resolve.outputs.release_tag != ''
       )
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.tag.outputs.tag || inputs.tag || github.ref }}
+          ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
 
       - name: Compose release body
         env:
-          TAG: ${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}
+          TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
         run: |
           set -euo pipefail
@@ -274,8 +316,8 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}
-          name: ${{ needs.tag.outputs.tag || inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+          name: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
           body_path: RELEASE_BODY.md
           generate_release_notes: true
           fail_on_unmatched_files: false
