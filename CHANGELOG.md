@@ -2,6 +2,25 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.0 - 2026-05-19
+#### Features
+- enable cog-driven auto-release for first crates.io publish - (e136bde) - Anton Velichko
+#### Documentation
+- add GH Release badge + align badge order with sibling repos - (e067429) - Anton Velichko
+#### Tests
+- (**cross-side**) replace Rust-only placeholder with Rust↔Solidity equality harness - (f25c343) - Anton Velichko
+- (**solidity**) pin TD/SU wrapper abi.encodePacked layouts via vm.mockCall - (ebd5b9c) - Anton Velichko
+#### Continuous Integration
+- (**deny**) add cargo-deny supply-chain enforcement - (1659ded) - Anton Velichko
+- add manual-tag re-release path via `resolve` job - (a981c1d) - Anton Velichko
+- add github-release stage after publish - (7acecb1) - Anton Velichko
+- unify cog tag + crates.io publish into a single workflow - (9435a53) - Anton Velichko
+- install forge-std on CI + fix Solidity test fmt and revert-expectation - (3d0e3af) - Anton Velichko
+#### Style
+- (**fmt**) collapse compute_ownership_grumpkin params to one line - (6622242) - Anton Velichko
+
+- - -
+
 ## v0.1.0 - 2026-05-16
 #### Features
 - (**ownership**) Schnorr/Grumpkin commitment (Poseidon3) - (197c175) - Anton Velichko
