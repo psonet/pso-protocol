@@ -31,3 +31,4 @@ thiserror = { version = "2", default-features = false }
 
 [dev-dependencies]
 hex = "0.4"
+proptest = { version = "1", default-features = false, features = ["std"] }
