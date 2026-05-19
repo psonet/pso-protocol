@@ -1,7 +1,8 @@
 # pso-protocol
 
-[![CI](https://github.com/psonet/pso-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/psonet/pso-protocol/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/pso-protocol.svg)](https://crates.io/crates/pso-protocol)
+[![release](https://img.shields.io/github/v/release/psonet/pso-protocol.svg)](https://github.com/psonet/pso-protocol/releases)
+[![CI](https://github.com/psonet/pso-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/psonet/pso-protocol/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Single source of truth** for every PSO consensus-binding hash formula
