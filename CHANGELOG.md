@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2026-05-20
+#### Bug Fixes
+- bump pso-poseidon dep to ^0.3; fix README cross-repo links + stale version refs - (c2d7d25) - Anton Velichko
+
+- - -
+
 ## v0.2.0 - 2026-05-19
 #### Features
 - enable cog-driven auto-release for first crates.io publish - (e136bde) - Anton Velichko
