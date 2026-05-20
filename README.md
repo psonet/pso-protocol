@@ -8,7 +8,7 @@
 **Single source of truth** for every PSO consensus-binding hash formula
 and witness type. Consumed in three places:
 
-- **Rust wallets** (off-chain) — depend on `pso-protocol = "0.1"`.
+- **Rust wallets** (off-chain) — depend on `pso-protocol = "0.2"`.
 - **PSO chain** (on-chain precompiles `0x0210..0x021F`) — depends on the
   same crate; each precompile body calls into `pso-protocol`.
 - **Solidity contracts** — `forge install psonet/pso-protocol` and import
@@ -25,11 +25,11 @@ off-chain consumers.
 One of four sibling repos in the post-extraction layout:
 
 - **`pso-protocol`** *(this repo)* — consensus-binding primitives.
-- [`pso-zk-circuits`](../pso-zk-circuits) — Noir circuits + FFI prover.
-- [`pso-integration`](../pso-integration) — client-side integration:
+- [`pso-zk-circuits`](https://github.com/psonet/pso-zk-circuits) — Noir circuits + FFI prover.
+- `pso-integration` (internal) — client-side integration:
   UniFFI wallet bindings, SRA registrar, CLI, VDF FFI (planned), and
   the L2-interaction surface clients use to talk to the chain.
-- [`pso-chain`](../pso-chain) — PSO L2 chain (registers this crate's
+- `pso-chain` (internal) — PSO L2 chain (registers this crate's
   precompiles, links `PsoProtocol.sol` into its contracts).
 
 ## Why this crate exists
@@ -107,7 +107,7 @@ function stays in this crate for wallet use at mint time.
 
 ```toml
 [dependencies]
-pso-protocol = "0.1"
+pso-protocol = "0.2"
 ```
 
 ```rust
@@ -161,12 +161,11 @@ pso-protocol/
 ```
 
 Future phases will add `binding.rs`, `nft.rs`, `ownership.rs`,
-`witness.rs`, and `merkle.rs` per the migration plan in
-`pso-chain/docs/issues/pso-protocol-extraction.md`.
+`witness.rs`, and `merkle.rs` per the internal migration plan.
 
 ## no_std
 
-v0.1 ships **std-only** because the underlying
+Currently ships **std-only** because the underlying
 [`pso-poseidon`](https://github.com/psonet/pso-poseidon) crate is not yet
 no_std. The feature shape (`default = ["std"]`, every dep
 `default-features = false`) is laid out for a future no_std story:

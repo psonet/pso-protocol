@@ -26,7 +26,7 @@ std = [
 [dependencies]
 ark-bn254 = { version = "0.5", default-features = false, features = ["curve"] }
 ark-ff    = { version = "0.5", default-features = false }
-pso-poseidon = "0.2"
+pso-poseidon = "0.3"
 thiserror = { version = "2", default-features = false }
 
 [dev-dependencies]
