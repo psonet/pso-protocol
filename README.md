@@ -172,6 +172,25 @@ no_std. The feature shape (`default = ["std"]`, every dep
 flipping `default = []` once `pso-poseidon` goes no_std will not change
 the public API.
 
+## Verifying releases
+
+Releases tagged from `v0.2.3` onward ship sigstore cosign signatures + SLSA build-provenance attestations for every artifact. See [SECURITY.md](SECURITY.md) for the threat model and the copy-pasteable verify recipe.
+
+Quick check:
+
+```sh
+TAG=v0.2.3
+ARTIFACT=pso-protocol-${TAG#v}.crate
+gh release download "$TAG" --repo psonet/pso-protocol \
+  --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"
+cosign verify-blob \
+  --certificate "$ARTIFACT.pem" --signature "$ARTIFACT.sig" \
+  --certificate-identity-regexp \
+    '^https://github\.com/psonet/pso-protocol/\.github/workflows/ci\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  "$ARTIFACT"
+```
+
 ## License
 
 [MIT](LICENSE) — same as `pso-vdf` and `pso-poseidon`.
