@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.3 - 2026-05-21
+#### Bug Fixes
+- (**release**) broaden verify-release identity regex to accept refs/heads/main - (b4d90a7) - Anton Velichko
+- (**release**) downgrade cosign tooling to v3.x / v2.x action lines - (49a4261) - Anton Velichko
+- (**release**) sign release artifacts with sigstore cosign + SLSA attest - (12ba37b) - Anton Velichko
+
+- - -
+
 ## v0.2.2 - 2026-05-20
 #### Bug Fixes
 - (**ci**) attach .crate + SHA256SUMS to GH Releases - (1036362) - Anton Velichko
