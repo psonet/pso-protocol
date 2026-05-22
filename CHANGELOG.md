@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.0 - 2026-05-22
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>unify Fr wire format on big-endian (BREAKING — v0.3.0) - (c815353) - Anton Velichko
+#### Refactoring
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>trigger v0.3.0 release - (d6e7648) - Anton Velichko
+- unify Fr wire format on big-endian (BREAKING — 0.3.0) - (ff1d314) - Anton Velichko
+
+- - -
+
 ## v0.2.3 - 2026-05-21
 #### Bug Fixes
 - (**release**) broaden verify-release identity regex to accept refs/heads/main - (b4d90a7) - Anton Velichko
