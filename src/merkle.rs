@@ -65,7 +65,11 @@ pub fn compute_merkle_root(
     for i in 0..depth {
         let (sibling, is_left) = if i < merkle_path.len() {
             let element = &merkle_path[i];
-            let sibling = Fr::from_le_bytes_mod_order(&element.node_hash);
+            // BE-encoded `node_hash` bytes — unified PSO wire format
+            // since v0.3 (was LE before; coordinated with the Rust
+            // witness builders in `pso-integrations-shared::witness`
+            // and the harness in `pso-zk-circuit-noir/src/lib.rs`).
+            let sibling = Fr::from_be_bytes_mod_order(&element.node_hash);
             let is_left = match element.index {
                 // Right = sibling on right, current on left → is_left = true.
                 MerklePathElementIndex::Right => true,
@@ -105,7 +109,12 @@ mod tests {
         for i in 0..depth {
             let (node_hash, is_left) = if i < merkle_path.len() {
                 let element = &merkle_path[i];
-                let hash = Fr::from_le_bytes_mod_order(&element.node_hash);
+                // Same BE flip as `compute_merkle_root` above — the
+                // `original_inline` test now mirrors the post-v0.3
+                // production code rather than the pre-v0.3 LE inline
+                // version. Keep the parity check as a regression
+                // guard against a future divergence.
+                let hash = Fr::from_be_bytes_mod_order(&element.node_hash);
                 let is_left = match element.index {
                     MerklePathElementIndex::Right => true,
                     MerklePathElementIndex::Left => false,
@@ -125,10 +134,11 @@ mod tests {
         current_hash
     }
 
-    fn fr_to_le(value: Fr) -> [u8; 32] {
-        let le = value.into_bigint().to_bytes_le();
+    fn fr_to_be(value: Fr) -> [u8; 32] {
+        let be = value.into_bigint().to_bytes_be();
         let mut out = [0u8; 32];
-        out[..le.len().min(32)].copy_from_slice(&le[..le.len().min(32)]);
+        let off = 32 - be.len().min(32);
+        out[off..].copy_from_slice(&be[be.len().saturating_sub(32)..]);
         out
     }
 
@@ -149,7 +159,7 @@ mod tests {
     fn deterministic() {
         let leaf = Fr::from(0xdeadu64);
         let path = vec![MerklePathElement {
-            node_hash: fr_to_le(Fr::from(0xb0bau64)),
+            node_hash: fr_to_be(Fr::from(0xb0bau64)),
             index: MerklePathElementIndex::Left,
         }];
         let a = compute_merkle_root(&leaf, &path, SPARSE_MERKLE_PATH_DEPTH).unwrap();
@@ -171,19 +181,19 @@ mod tests {
         let leaf = Fr::from(0xfaceu64);
         let path = vec![
             MerklePathElement {
-                node_hash: fr_to_le(Fr::from(1u64)),
+                node_hash: fr_to_be(Fr::from(1u64)),
                 index: MerklePathElementIndex::Left,
             },
             MerklePathElement {
-                node_hash: fr_to_le(Fr::from(2u64)),
+                node_hash: fr_to_be(Fr::from(2u64)),
                 index: MerklePathElementIndex::Right,
             },
             MerklePathElement {
-                node_hash: fr_to_le(Fr::from(3u64)),
+                node_hash: fr_to_be(Fr::from(3u64)),
                 index: MerklePathElementIndex::Skip,
             },
             MerklePathElement {
-                node_hash: fr_to_le(Fr::from(4u64)),
+                node_hash: fr_to_be(Fr::from(4u64)),
                 index: MerklePathElementIndex::Left,
             },
         ];
@@ -195,7 +205,7 @@ mod tests {
     #[test]
     fn different_indices_give_different_roots() {
         let leaf = Fr::from(7u64);
-        let sibling_bytes = fr_to_le(Fr::from(99u64));
+        let sibling_bytes = fr_to_be(Fr::from(99u64));
         let path_left = vec![MerklePathElement {
             node_hash: sibling_bytes,
             index: MerklePathElementIndex::Left,
@@ -216,7 +226,7 @@ mod tests {
         let leaf = Fr::from(123u64);
 
         let short = vec![MerklePathElement {
-            node_hash: fr_to_le(Fr::from(42u64)),
+            node_hash: fr_to_be(Fr::from(42u64)),
             index: MerklePathElementIndex::Left,
         }];
         let mut padded = short.clone();
