@@ -87,11 +87,11 @@ pub trait GenerateWitness<Ctx> {
 /// material. See DH-6 for policy.
 #[derive(Clone)]
 pub struct OwnershipPrivateInputs {
-    /// Nonce for ZKP, 32-byte little-endian Fr.
+    /// Nonce for ZKP, 32-byte BE Fr.
     pub nonce: [u8; 32],
-    /// secp256k1 public-key X coordinate (32 BE bytes).
+    /// Grumpkin public-key X coordinate, 32-byte BE Fr.
     pub public_key_x: [u8; 32],
-    /// secp256k1 public-key Y coordinate (32 BE bytes).
+    /// Grumpkin public-key Y coordinate, 32-byte BE Fr.
     pub public_key_y: [u8; 32],
 }
 
@@ -107,28 +107,33 @@ impl fmt::Debug for OwnershipPrivateInputs {
 
 /// Public inputs for the §4.2 single-NFT ownership proof.
 ///
-/// `nft_hash` was added in the §4.2 redesign — the signature payload
-/// moved from `ownership.to_le_bytes()` to
-/// `Poseidon2(nft_hash, nonce).to_le_bytes()`, so the circuit now
-/// needs the entity hash as a public input so the verifier can
-/// recompute the expected pre-hash and bind the proof to a specific
-/// NFT.
+/// `nft_hash` was added in the §4.2 redesign — the Schnorr-signed
+/// payload is `Poseidon2(nft_hash, nonce).to_be_bytes()` per the
+/// Noir circuit (`pso-circuit-core/src/ownership.nr`), so the
+/// circuit takes the entity hash as a public input and the
+/// verifier recomputes the same pre-hash to bind the proof to a
+/// specific NFT.
 ///
 /// `signature` is **logically private** in the §4.2 circuit (the
 /// circuit's `main()` declares it as a private parameter). It lives
 /// in this struct for historical / serialization reasons — the
 /// witness map builder routes it to the private witness slot.
+///
+/// All `[u8; 32]` Fr fields are **big-endian** as of pso-protocol
+/// v0.3.0 (the LE convention before that was Rust-side only and
+/// inconsistent with the Solidity / barretenberg-rs / on-chain
+/// BE convention).
 #[derive(Clone, Debug)]
 pub struct OwnershipPublicInputs {
-    /// Poseidon5 owner commitment (ownership proof output), 32-byte LE Fr.
+    /// Poseidon5 owner commitment (ownership proof output), 32-byte BE Fr.
     pub ownership: [u8; 32],
-    /// Per-NFT entity hash. 32-byte LE Fr. Public.
+    /// Per-NFT entity hash. 32-byte BE Fr. Public.
     pub nft_hash: [u8; 32],
-    /// secp256k1 ECDSA signature over
-    /// `Poseidon2(nft_hash, nonce).to_le_bytes()`, 64 bytes
-    /// (`r || s`). **Private witness** — exposed in this struct for
-    /// convenience but routed to the private slot by the witness
-    /// builders.
+    /// Grumpkin Schnorr signature over
+    /// `Poseidon2(nft_hash, nonce).to_be_bytes()`, 64 bytes (`s || e`,
+    /// each 32 bytes BE). **Private witness** — exposed in this
+    /// struct for convenience but routed to the private slot by the
+    /// witness builders.
     pub signature: [u8; 64],
 }
 
@@ -180,7 +185,7 @@ pub struct FullProofPublicInputs {
     /// entity hash; the inclusion check below resolves the Merkle
     /// path against this same value.
     pub ownership: OwnershipPublicInputs,
-    /// Merkle root (inclusion proof output), 32-byte LE Fr.
+    /// Merkle root (inclusion proof output), 32-byte BE Fr.
     pub merkle_root: [u8; 32],
 }
 
@@ -220,13 +225,13 @@ pub struct AggregationSlot {
 /// `derived_owners[i] == 0`.
 #[derive(Clone)]
 pub struct AggregationPrivateInputs {
-    /// secp256k1 public-key X coordinate, 32 BE bytes.
+    /// Grumpkin public-key X coordinate, 32-byte BE Fr.
     pub public_key_x: [u8; 32],
-    /// secp256k1 public-key Y coordinate, 32 BE bytes.
+    /// Grumpkin public-key Y coordinate, 32-byte BE Fr.
     pub public_key_y: [u8; 32],
-    /// One Fr nonce per tier slot, LE-encoded.
+    /// One Fr nonce per tier slot, 32-byte BE Fr each.
     pub nonces: Vec<[u8; 32]>,
-    /// ECDSA-secp256k1 signature over `binding_hash.to_bytes_le()`.
+    /// Grumpkin Schnorr signature over `binding_hash.to_be_bytes()`.
     pub signature: [u8; 64],
 }
 
@@ -252,11 +257,11 @@ impl fmt::Debug for AggregationPrivateInputs {
 /// The contract byte-compares the proof prefix against this vector.
 #[derive(Clone, Debug)]
 pub struct AggregationPublicInputs {
-    /// One Fr derived-owner per tier slot, LE-encoded. Real slots
-    /// equal `compute_ownership(pk_x, pk_y, nonces[i])`; padded slots
-    /// are 32 zero bytes.
+    /// One Fr derived-owner per tier slot, 32-byte BE Fr each.
+    /// Real slots equal `compute_ownership(pk_x, pk_y, nonces[i])`;
+    /// padded slots are 32 zero bytes.
     pub derived_owners: Vec<[u8; 32]>,
-    /// `compute_binding_hash(sender, tribute_draft_id, chain_id)`, LE-encoded.
+    /// `compute_binding_hash(sender, tribute_draft_id, chain_id)`, 32-byte BE Fr.
     pub binding_hash: [u8; 32],
 }
 
