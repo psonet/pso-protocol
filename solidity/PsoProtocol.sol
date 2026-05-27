@@ -77,16 +77,16 @@ library PsoProtocol {
     ///         The precompile derives `N` from `(input.length - 128) / 32`.
     function computeTributeDraftHash(
         bytes32 id,
-        uint16 settlementCurrency,
-        uint64 settlementAmountBase,
-        uint64 settlementAmountAtto,
+        uint16 currency,
+        uint64 amountBase,
+        uint64 amountAtto,
         bytes32[] memory suIds
     ) internal view returns (bytes32) {
         bytes memory input = abi.encodePacked(
             id,
-            uint256(settlementCurrency),
-            uint256(settlementAmountBase),
-            uint256(settlementAmountAtto),
+            uint256(currency),
+            uint256(amountBase),
+            uint256(amountAtto),
             _packBytes32Array(suIds)
         );
         (bool ok, bytes memory ret) = TD_HASH_PRECOMPILE.staticcall(input);
@@ -113,9 +113,9 @@ library PsoProtocol {
         bytes32 id,
         bytes32 owner,
         uint64 worldwideDay,
-        uint16 settlementCurrency,
-        uint64 settlementAmountBase,
-        uint64 settlementAmountAtto,
+        uint16 currency,
+        uint64 amountBase,
+        uint64 amountAtto,
         bytes32[] memory spendingRecordFingerprints,
         bytes32[] memory amendmentRecordFingerprints
     ) internal view returns (bytes32) {
@@ -123,9 +123,9 @@ library PsoProtocol {
             id,
             owner,
             uint256(worldwideDay),
-            uint256(settlementCurrency),
-            uint256(settlementAmountBase),
-            uint256(settlementAmountAtto),
+            uint256(currency),
+            uint256(amountBase),
+            uint256(amountAtto),
             uint256(spendingRecordFingerprints.length),
             _packBytes32Array(spendingRecordFingerprints),
             uint256(amendmentRecordFingerprints.length),
