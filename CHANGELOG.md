@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.1 - 2026-05-27
+#### Bug Fixes
+- (**release**) cut 0.3.1 to publish the settlement-prefix rename - (293a75c) - Anton Velichko
+#### Refactoring
+- (**nft**) drop redundant settlement prefix from hash fn params - (945dc29) - Anton Velichko
+
+- - -
+
 ## v0.3.0 - 2026-05-22
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>unify Fr wire format on big-endian (BREAKING — v0.3.0) - (c815353) - Anton Velichko
