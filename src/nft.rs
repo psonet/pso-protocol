@@ -56,20 +56,20 @@ pub fn compute_tribute_draft_id(owner: &Fr, worldwide_day: u64) -> Result<Fr, Pr
 /// chaining each subsequent field. Mirrors the original
 /// `pso_nft::compute_tribute_draft_hash` byte-for-byte.
 ///
-/// `settlement_amount_atto` is `u64` (not `u128`) — the on-chain
+/// `amount_atto` is `u64` (not `u128`) — the on-chain
 /// `TributeDraft` struct stores atto as a 64-bit value, and changing the
 /// width would change the hash.
 pub fn compute_tribute_draft_hash(
     id: &Fr,
-    settlement_currency: u16,
-    settlement_amount_base: u64,
-    settlement_amount_atto: u64,
+    currency: u16,
+    amount_base: u64,
+    amount_atto: u64,
     su_ids: &[Fr],
 ) -> Result<Fr, ProtocolError> {
     Ok(ProtocolHasher::new(*id)
-        .absorb_u64(u64::from(settlement_currency))?
-        .absorb_u64(settlement_amount_base)?
-        .absorb_u64(settlement_amount_atto)?
+        .absorb_u64(u64::from(currency))?
+        .absorb_u64(amount_base)?
+        .absorb_u64(amount_atto)?
         .absorb_many(su_ids)?
         .finalize())
 }
@@ -89,18 +89,18 @@ pub fn compute_spending_unit_hash(
     id: &Fr,
     owner: &Fr,
     worldwide_day: u64,
-    settlement_currency: u16,
-    settlement_amount_base: u64,
-    settlement_amount_atto: u64,
+    currency: u16,
+    amount_base: u64,
+    amount_atto: u64,
     spending_record_fingerprints: &[Fr],
     amendment_record_fingerprints: &[Fr],
 ) -> Result<Fr, ProtocolError> {
     Ok(ProtocolHasher::new(*id)
         .absorb(*owner)?
         .absorb_u64(worldwide_day)?
-        .absorb_u64(u64::from(settlement_currency))?
-        .absorb_u64(settlement_amount_base)?
-        .absorb_u64(settlement_amount_atto)?
+        .absorb_u64(u64::from(currency))?
+        .absorb_u64(amount_base)?
+        .absorb_u64(amount_atto)?
         .absorb_many(spending_record_fingerprints)?
         .absorb_many(amendment_record_fingerprints)?
         .finalize())
