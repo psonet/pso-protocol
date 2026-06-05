@@ -1,9 +1,12 @@
 //! TributeDraft and SpendingUnit entity hashes.
 //!
-//! Each formula is structurally identical to the iterated-Poseidon2
-//! patterns that `domain/pso-nft/` used to host. Output bytes are
-//! guaranteed identical — parity is enforced by the test module which
-//! inline-replicates the original implementations and asserts equality.
+//! Each formula follows the iterated-Poseidon2 pattern that
+//! `domain/pso-nft/` used to host. The TD id / TD hash are byte-identical
+//! to the originals (parity enforced by the test module). The **SU hash**
+//! additionally binds the two consent addresses (`attester`, `referrer`)
+//! into its preimage — see [`compute_spending_unit_hash`] — so it
+//! deliberately diverges from the pre-0.4 formula; the test module pins
+//! its absorb order against a hand-rolled reference instead.
 //!
 //! ## Bound to precompiles `0x0211`, `0x0212`
 //!
@@ -80,14 +83,23 @@ pub fn compute_tribute_draft_hash(
 
 /// Compute the SpendingUnit entity hash.
 ///
-/// Iterated Poseidon2 over `id, owner, worldwide_day, currency, base,
-/// atto`, followed by each spending-record fingerprint, followed by each
-/// amendment-record fingerprint. Mirrors the original
-/// `pso_nft::compute_spending_unit_hash` byte-for-byte.
+/// Iterated Poseidon2 over `id, owner, attester, referrer, worldwide_day,
+/// currency, base, atto`, followed by each spending-record fingerprint,
+/// followed by each amendment-record fingerprint.
+///
+/// `attester` and `referrer` are the SU's consent addresses (the SRA that
+/// minted it and the wallet self-address captured at consent), each a
+/// 20-byte EVM address right-aligned into an `Fr` (`uint160 → Fr`). They
+/// sit immediately after `owner`, mirroring `SpendingUnitEntity`'s field
+/// order, so the consent attribution is cryptographically bound to the
+/// SU's identity (and thus to the ownership signature / aggregation proof)
+/// rather than merely stored alongside it.
 #[allow(clippy::too_many_arguments)]
 pub fn compute_spending_unit_hash(
     id: &Fr,
     owner: &Fr,
+    attester: &Fr,
+    referrer: &Fr,
     worldwide_day: u64,
     currency: u16,
     amount_base: u64,
@@ -97,6 +109,8 @@ pub fn compute_spending_unit_hash(
 ) -> Result<Fr, ProtocolError> {
     Ok(ProtocolHasher::new(*id)
         .absorb(*owner)?
+        .absorb(*attester)?
+        .absorb(*referrer)?
         .absorb_u64(worldwide_day)?
         .absorb_u64(u64::from(currency))?
         .absorb_u64(amount_base)?
@@ -137,10 +151,15 @@ mod tests {
         result
     }
 
+    // Hand-rolled iterated-Poseidon2 reference for the SU hash, matching
+    // the documented preimage `[id, owner, attester, referrer, wwd,
+    // currency, base, atto, sr.., ar..]`. Used to pin the absorb order.
     #[allow(clippy::too_many_arguments)]
-    fn original_su_hash(
+    fn reference_su_hash(
         id: &Fr,
         owner: &Fr,
+        attester: &Fr,
+        referrer: &Fr,
         wwd: &Fr,
         currency_numeric: u16,
         amount_base: u64,
@@ -150,6 +169,8 @@ mod tests {
     ) -> Fr {
         let mut poseidon = pso_poseidon::Poseidon::<Fr>::new_circom(2).unwrap();
         let mut result = poseidon.hash(&[*id, *owner]).unwrap();
+        result = poseidon.hash(&[result, *attester]).unwrap();
+        result = poseidon.hash(&[result, *referrer]).unwrap();
         result = poseidon.hash(&[result, *wwd]).unwrap();
         result = poseidon
             .hash(&[result, Fr::from(u64::from(currency_numeric))])
@@ -240,24 +261,54 @@ mod tests {
     // ----- SU Hash -----
 
     #[test]
-    fn su_hash_parity_with_original_empty_records() {
+    fn su_hash_matches_reference_empty_records() {
         let id = Fr::from(0xc0deu64);
         let owner = Fr::from(0xf00du64);
-        let new = compute_spending_unit_hash(&id, &owner, 12345, 840, 100, 0, &[], &[]).unwrap();
-        let old = original_su_hash(&id, &owner, &Fr::from(12345u64), 840, 100, 0, &[], &[]);
-        assert_eq!(new, old);
+        let att = Fr::from(0x5au64);
+        let refr = Fr::from(0x7a11e7u64);
+        let new =
+            compute_spending_unit_hash(&id, &owner, &att, &refr, 12345, 840, 100, 0, &[], &[])
+                .unwrap();
+        let reference = reference_su_hash(
+            &id,
+            &owner,
+            &att,
+            &refr,
+            &Fr::from(12345u64),
+            840,
+            100,
+            0,
+            &[],
+            &[],
+        );
+        assert_eq!(new, reference);
     }
 
     #[test]
-    fn su_hash_parity_with_original_varied_records() {
+    fn su_hash_matches_reference_varied_records() {
         let id = Fr::from(0xc0deu64);
         let owner = Fr::from(0xf00du64);
+        let att = Fr::from(0x5au64);
+        let refr = Fr::from(0x7a11e7u64);
         for (n_sr, n_ar) in [(0usize, 0usize), (1, 0), (0, 1), (3, 5), (10, 10)] {
             let sr = fr_seq(2000 + n_sr as u64, n_sr);
             let ar = fr_seq(3000 + n_ar as u64, n_ar);
-            let new = compute_spending_unit_hash(&id, &owner, 100, 978, 50, 42, &sr, &ar).unwrap();
-            let old = original_su_hash(&id, &owner, &Fr::from(100u64), 978, 50, 42, &sr, &ar);
-            assert_eq!(new, old, "SU hash drift at n_sr={n_sr} n_ar={n_ar}");
+            let new =
+                compute_spending_unit_hash(&id, &owner, &att, &refr, 100, 978, 50, 42, &sr, &ar)
+                    .unwrap();
+            let reference = reference_su_hash(
+                &id,
+                &owner,
+                &att,
+                &refr,
+                &Fr::from(100u64),
+                978,
+                50,
+                42,
+                &sr,
+                &ar,
+            );
+            assert_eq!(new, reference, "SU hash drift at n_sr={n_sr} n_ar={n_ar}");
         }
     }
 
@@ -268,10 +319,66 @@ mod tests {
         // chain at different points.
         let id = Fr::from(1u64);
         let owner = Fr::from(2u64);
+        let att = Fr::from(3u64);
+        let refr = Fr::from(4u64);
         let v1 = fr_seq(1, 3);
         let v2 = fr_seq(4, 2);
-        let h1 = compute_spending_unit_hash(&id, &owner, 1, 1, 1, 1, &v1, &v2).unwrap();
-        let h2 = compute_spending_unit_hash(&id, &owner, 1, 1, 1, 1, &v2, &v1).unwrap();
+        let h1 =
+            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &v1, &v2).unwrap();
+        let h2 =
+            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &v2, &v1).unwrap();
         assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn su_hash_sensitive_to_consent_addresses() {
+        // The new attester / referrer fields must each change the hash —
+        // proving the consent attribution is bound into the preimage.
+        let id = Fr::from(1u64);
+        let owner = Fr::from(2u64);
+        let att = Fr::from(0x5au64);
+        let refr = Fr::from(0x7a11e7u64);
+        let base =
+            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &[], &[]).unwrap();
+
+        let diff_att = compute_spending_unit_hash(
+            &id,
+            &owner,
+            &Fr::from(0x5bu64),
+            &refr,
+            1,
+            1,
+            1,
+            1,
+            &[],
+            &[],
+        )
+        .unwrap();
+        let diff_ref = compute_spending_unit_hash(
+            &id,
+            &owner,
+            &att,
+            &Fr::from(0x9999u64),
+            1,
+            1,
+            1,
+            1,
+            &[],
+            &[],
+        )
+        .unwrap();
+        // Zero (no-referrer / unset) must also differ from a set value.
+        let zero_ref =
+            compute_spending_unit_hash(&id, &owner, &att, &Fr::from(0u64), 1, 1, 1, 1, &[], &[])
+                .unwrap();
+
+        assert_ne!(base, diff_att, "attester must affect the hash");
+        assert_ne!(base, diff_ref, "referrer must affect the hash");
+        assert_ne!(base, zero_ref, "referrer=0 must differ from referrer set");
+        // attester and referrer occupy distinct positions: swapping them
+        // (when distinct) changes the hash.
+        let swapped =
+            compute_spending_unit_hash(&id, &owner, &refr, &att, 1, 1, 1, 1, &[], &[]).unwrap();
+        assert_ne!(base, swapped, "attester/referrer are positionally distinct");
     }
 }

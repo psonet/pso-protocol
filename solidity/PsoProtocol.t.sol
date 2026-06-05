@@ -55,6 +55,8 @@ contract PsoProtocolTest is Test {
     function _expectedSuInput(
         bytes32 id,
         bytes32 owner,
+        address attester,
+        address referrer,
         uint64 worldwideDay,
         uint16 currency,
         uint64 amountBase,
@@ -65,6 +67,8 @@ contract PsoProtocolTest is Test {
         return abi.encodePacked(
             id,
             owner,
+            uint256(uint160(attester)),
+            uint256(uint160(referrer)),
             uint256(worldwideDay),
             uint256(currency),
             uint256(amountBase),
@@ -152,6 +156,8 @@ contract PsoProtocolTest is Test {
     {
         bytes32 id = bytes32(uint256(0xc0de));
         bytes32 owner = bytes32(uint256(0xf00d));
+        address attester = address(0x5A);
+        address referrer = address(0x7A11E7);
         uint64 worldwideDay = 100;
         uint16 currency = 978;
         uint64 amountBase = 50;
@@ -167,14 +173,14 @@ contract PsoProtocolTest is Test {
         arFps[2] = bytes32(uint256(3002));
 
         bytes memory expectedInput = _expectedSuInput(
-            id, owner, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
+            id, owner, attester, referrer, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
         );
         bytes32 expectedOut = bytes32(uint256(0xfacefeed));
 
         vm.mockCall(PsoProtocol.SU_HASH_PRECOMPILE, expectedInput, abi.encode(expectedOut));
 
         bytes32 got = PsoProtocol.computeSpendingUnitHash(
-            id, owner, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
+            id, owner, attester, referrer, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
         );
         assertEq(got, expectedOut, "SU wrapper did not return precompile output unchanged");
     }
