@@ -20,6 +20,7 @@
 //! | `nft`        | On-chain precompiles `0x0211` (TD hash) and `0x0212` (SU hash). The id formulas (`compute_tribute_draft_id`, no SU-id) stay in this crate for wallet use but have no on-chain precompile — TD-id's `owner` input bakes in off-chain nonce randomness and SU ids are random, so on-chain recomputation gains nothing the ZK proof doesn't already attest. | Yes — coordinated chain + wallet release. |
 //! | `ownership`  | The ZK circuit (Noir source).             | Yes — new ACIR → new canonical descriptor. Not exposed in Solidity. |
 //! | `merkle`     | The ZK circuit Merkle-path semantics.     | Yes — coordinated circuit release. |
+//! | `imt`        | Commitment-window IMT: node hash, zero ladder, frontier insert (precompile `0x0204`), and the single inclusion-proof primitive. | Yes — coordinated chain + circuit + wallet release. |
 //! | `witness`    | The ZK circuit public-input layout.       | Yes — coordinated circuit + wallet release. |
 //!
 //! **Any change to a published function's output bytes is a major-version
@@ -32,6 +33,7 @@ pub mod binding;
 pub mod error;
 pub mod fr;
 pub mod hash;
+pub mod imt;
 pub mod merkle;
 pub mod nft;
 pub mod ownership;
