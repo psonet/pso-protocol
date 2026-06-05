@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.4.0 - 2026-06-05
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**nft**) bind attester + referrer consent addresses into the SU hash - (0c7c4f4) - Anton Velichko
+#### Tests
+- (**nft**) name hash-fn args via let-bindings + use valid YYYYMMDD worldwide_day - (689753f) - Anton Velichko
+#### Style
+- (**solidity**) forge fmt the 10-arg SU-hash test calls one-per-line - (da5f6de) - Anton Velichko
+
+- - -
+
 ## v0.3.1 - 2026-05-27
 #### Bug Fixes
 - (**release**) cut 0.3.1 to publish the settlement-prefix rename - (293a75c) - Anton Velichko
