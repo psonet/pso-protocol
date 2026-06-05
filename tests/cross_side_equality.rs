@@ -376,9 +376,20 @@ fn td_hash_fixed_vector_empty_su() {
     // Exercises precompile 0x0211 with no SU ids.
     let id_fr = Fr::from(0xdeadu64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 100u64;
+    let amount_atto = 0u64;
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 978, 100, 0, &[]).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 978, 100, 0, &[]));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &[]).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &[],
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -387,11 +398,22 @@ fn td_hash_fixed_vector_with_su() {
     // Exercises precompile 0x0211 with several SU ids.
     let id_fr = Fr::from(0xbeefu64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 840u16; // ISO 4217 (USD)
+    let amount_base = 500u64;
+    let amount_atto = 1u64;
     let su_fr: Vec<Fr> = (1..=4).map(|i: u64| Fr::from(0x1000 + i)).collect();
     let su_bytes: Vec<[u8; 32]> = su_fr.iter().map(fr_to_be_bytes).collect();
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 840, 500, 1, &su_fr).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 840, 500, 1, &su_bytes));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &su_fr).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &su_bytes,
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -404,6 +426,10 @@ fn su_hash_fixed_vector_empty_records() {
     let owner_bytes = fr_to_be_bytes(&owner_fr);
     let attester = [0x5au8; 20];
     let referrer = [0x7au8; 20];
+    let worldwide_day = 20_250_923u64; // YYYYMMDD
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 50u64;
+    let amount_atto = 0u64;
 
     let rust = fr_to_be_bytes(
         &compute_spending_unit_hash(
@@ -411,10 +437,10 @@ fn su_hash_fixed_vector_empty_records() {
             &owner_fr,
             &addr_fr(&attester),
             &addr_fr(&referrer),
-            100,
-            978,
-            50,
-            0,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
             &[],
             &[],
         )
@@ -425,10 +451,10 @@ fn su_hash_fixed_vector_empty_records() {
         &owner_bytes,
         &attester,
         &referrer,
-        100,
-        978,
-        50,
-        0,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &[],
         &[],
     ));
@@ -445,6 +471,10 @@ fn su_hash_fixed_vector_with_records() {
 
     let attester = [0x5au8; 20];
     let referrer = [0x7au8; 20];
+    let worldwide_day = 20_250_923u64; // YYYYMMDD
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 50u64;
+    let amount_atto = 42u64;
     let sr_fr: Vec<Fr> = (0..3).map(|i: u64| Fr::from(2000 + i)).collect();
     let ar_fr: Vec<Fr> = (0..5).map(|i: u64| Fr::from(3000 + i)).collect();
     let sr_bytes: Vec<[u8; 32]> = sr_fr.iter().map(fr_to_be_bytes).collect();
@@ -456,10 +486,10 @@ fn su_hash_fixed_vector_with_records() {
             &owner_fr,
             &addr_fr(&attester),
             &addr_fr(&referrer),
-            100,
-            978,
-            50,
-            42,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
             &sr_fr,
             &ar_fr,
         )
@@ -470,10 +500,10 @@ fn su_hash_fixed_vector_with_records() {
         &owner_bytes,
         &attester,
         &referrer,
-        100,
-        978,
-        50,
-        42,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &sr_bytes,
         &ar_bytes,
     ));
@@ -607,11 +637,22 @@ fn td_hash_extreme_su_count() {
     // Exercises precompile 0x0211 at a non-trivial vector length.
     let id_fr = Fr::from(1u64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 840u16; // ISO 4217 (USD)
+    let amount_base = 1u64;
+    let amount_atto = 1u64;
     let su_fr: Vec<Fr> = (0..64).map(|i: u64| Fr::from(7919 + i)).collect();
     let su_bytes: Vec<[u8; 32]> = su_fr.iter().map(fr_to_be_bytes).collect();
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 840, 1, 1, &su_fr).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 840, 1, 1, &su_bytes));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &su_fr).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &su_bytes,
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -624,6 +665,12 @@ fn su_hash_extreme_record_counts() {
     let owner_bytes = fr_to_be_bytes(&owner_fr);
     let attester = [0xffu8; 20];
     let referrer = [0x00u8; 20];
+    // Max-boundary coverage of the numeric-field encoding — deliberately
+    // extreme rather than realistic (worldwide_day is normally YYYYMMDD).
+    let worldwide_day = u64::MAX;
+    let currency = u16::MAX;
+    let amount_base = u64::MAX;
+    let amount_atto = u64::MAX;
     let sr_fr: Vec<Fr> = (0..32).map(|i: u64| Fr::from(1000 + i)).collect();
     let ar_fr: Vec<Fr> = (0..16).map(|i: u64| Fr::from(5000 + i)).collect();
     let sr_bytes: Vec<[u8; 32]> = sr_fr.iter().map(fr_to_be_bytes).collect();
@@ -635,10 +682,10 @@ fn su_hash_extreme_record_counts() {
             &owner_fr,
             &addr_fr(&attester),
             &addr_fr(&referrer),
-            u64::MAX,
-            u16::MAX,
-            u64::MAX,
-            u64::MAX,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
             &sr_fr,
             &ar_fr,
         )
@@ -649,10 +696,10 @@ fn su_hash_extreme_record_counts() {
         &owner_bytes,
         &attester,
         &referrer,
-        u64::MAX,
-        u16::MAX,
-        u64::MAX,
-        u64::MAX,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &sr_bytes,
         &ar_bytes,
     ));

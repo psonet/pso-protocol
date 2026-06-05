@@ -28,11 +28,12 @@
 //!
 //! ## Worldwide day
 //!
-//! These functions take `worldwide_day` as a `u64`. Callers convert from
-//! `NaiveDate` upstream via `(date - epoch).num_days() as u64` where the
-//! epoch is `2021-01-01`. The encoding into Fr is `Fr::from(wwd_u64)`,
-//! which mirrors the original `Fr::from(worldwide_day_count(&date)?)`
-//! byte-for-byte.
+//! These functions take `worldwide_day` as an opaque `u64` and absorb it
+//! as `Fr::from(wwd)`. The canonical encoding is the compact **`YYYYMMDD`**
+//! date (e.g. `20250923`), matching the on-chain `SpendingUnitEntity` /
+//! `TributeDraftEntity` `worldwideDay` field and the privacy-preserving L2
+//! spec. The hash itself is format-agnostic — both sides must simply agree
+//! on the same `u64`.
 
 use ark_bn254::Fr;
 
@@ -209,17 +210,20 @@ mod tests {
     #[test]
     fn td_id_deterministic() {
         let owner = Fr::from(123u64);
-        let a = compute_tribute_draft_id(&owner, 456).unwrap();
-        let b = compute_tribute_draft_id(&owner, 456).unwrap();
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let a = compute_tribute_draft_id(&owner, worldwide_day).unwrap();
+        let b = compute_tribute_draft_id(&owner, worldwide_day).unwrap();
         assert_eq!(a, b);
     }
 
     #[test]
     fn td_id_sensitive_to_each_input() {
         let owner = Fr::from(1u64);
-        let h_owner_1 = compute_tribute_draft_id(&owner, 100).unwrap();
-        let h_owner_2 = compute_tribute_draft_id(&Fr::from(2u64), 100).unwrap();
-        let h_wwd_diff = compute_tribute_draft_id(&owner, 101).unwrap();
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let next_day = 20_250_924u64;
+        let h_owner_1 = compute_tribute_draft_id(&owner, worldwide_day).unwrap();
+        let h_owner_2 = compute_tribute_draft_id(&Fr::from(2u64), worldwide_day).unwrap();
+        let h_wwd_diff = compute_tribute_draft_id(&owner, next_day).unwrap();
         assert_ne!(h_owner_1, h_owner_2);
         assert_ne!(h_owner_1, h_wwd_diff);
     }
@@ -229,18 +233,25 @@ mod tests {
     #[test]
     fn td_hash_parity_with_original_empty_su() {
         let id = Fr::from(0xdeadu64);
-        let new = compute_tribute_draft_hash(&id, 978, 100, 0, &[]).unwrap();
-        let old = original_td_hash(&id, 978, 100, 0, &[]);
+        let currency = 978u16;
+        let amount_base = 100u64;
+        let amount_atto = 0u64;
+        let new = compute_tribute_draft_hash(&id, currency, amount_base, amount_atto, &[]).unwrap();
+        let old = original_td_hash(&id, currency, amount_base, amount_atto, &[]);
         assert_eq!(new, old);
     }
 
     #[test]
     fn td_hash_parity_with_original_varied_su_counts() {
         let id = Fr::from(0xbeefu64);
+        let currency = 840u16;
+        let amount_base = 500u64;
+        let amount_atto = 1u64;
         for n in [1usize, 2, 5, 10, 64] {
             let su_ids = fr_seq(1000 + n as u64, n);
-            let new = compute_tribute_draft_hash(&id, 840, 500, 1, &su_ids).unwrap();
-            let old = original_td_hash(&id, 840, 500, 1, &su_ids);
+            let new = compute_tribute_draft_hash(&id, currency, amount_base, amount_atto, &su_ids)
+                .unwrap();
+            let old = original_td_hash(&id, currency, amount_base, amount_atto, &su_ids);
             assert_eq!(new, old, "TD hash drift at n_su={n}");
         }
     }
@@ -250,11 +261,15 @@ mod tests {
         // Iterated hashing is order-sensitive — reversing su_ids must
         // change the output.
         let id = Fr::from(1u64);
+        let currency = 978u16;
+        let amount_base = 0u64;
+        let amount_atto = 0u64;
         let su = fr_seq(1, 4);
         let mut su_rev = su.clone();
         su_rev.reverse();
-        let h1 = compute_tribute_draft_hash(&id, 978, 0, 0, &su).unwrap();
-        let h2 = compute_tribute_draft_hash(&id, 978, 0, 0, &su_rev).unwrap();
+        let h1 = compute_tribute_draft_hash(&id, currency, amount_base, amount_atto, &su).unwrap();
+        let h2 =
+            compute_tribute_draft_hash(&id, currency, amount_base, amount_atto, &su_rev).unwrap();
         assert_ne!(h1, h2);
     }
 
@@ -266,18 +281,32 @@ mod tests {
         let owner = Fr::from(0xf00du64);
         let att = Fr::from(0x5au64);
         let refr = Fr::from(0x7a11e7u64);
-        let new =
-            compute_spending_unit_hash(&id, &owner, &att, &refr, 12345, 840, 100, 0, &[], &[])
-                .unwrap();
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let currency = 840u16;
+        let amount_base = 100u64;
+        let amount_atto = 0u64;
+        let new = compute_spending_unit_hash(
+            &id,
+            &owner,
+            &att,
+            &refr,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
+            &[],
+            &[],
+        )
+        .unwrap();
         let reference = reference_su_hash(
             &id,
             &owner,
             &att,
             &refr,
-            &Fr::from(12345u64),
-            840,
-            100,
-            0,
+            &Fr::from(worldwide_day),
+            currency,
+            amount_base,
+            amount_atto,
             &[],
             &[],
         );
@@ -290,21 +319,35 @@ mod tests {
         let owner = Fr::from(0xf00du64);
         let att = Fr::from(0x5au64);
         let refr = Fr::from(0x7a11e7u64);
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let currency = 978u16;
+        let amount_base = 50u64;
+        let amount_atto = 42u64;
         for (n_sr, n_ar) in [(0usize, 0usize), (1, 0), (0, 1), (3, 5), (10, 10)] {
             let sr = fr_seq(2000 + n_sr as u64, n_sr);
             let ar = fr_seq(3000 + n_ar as u64, n_ar);
-            let new =
-                compute_spending_unit_hash(&id, &owner, &att, &refr, 100, 978, 50, 42, &sr, &ar)
-                    .unwrap();
+            let new = compute_spending_unit_hash(
+                &id,
+                &owner,
+                &att,
+                &refr,
+                worldwide_day,
+                currency,
+                amount_base,
+                amount_atto,
+                &sr,
+                &ar,
+            )
+            .unwrap();
             let reference = reference_su_hash(
                 &id,
                 &owner,
                 &att,
                 &refr,
-                &Fr::from(100u64),
-                978,
-                50,
-                42,
+                &Fr::from(worldwide_day),
+                currency,
+                amount_base,
+                amount_atto,
                 &sr,
                 &ar,
             );
@@ -321,12 +364,38 @@ mod tests {
         let owner = Fr::from(2u64);
         let att = Fr::from(3u64);
         let refr = Fr::from(4u64);
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let currency = 978u16; // ISO 4217 (EUR)
+        let amount_base = 100u64;
+        let amount_atto = 0u64;
         let v1 = fr_seq(1, 3);
         let v2 = fr_seq(4, 2);
-        let h1 =
-            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &v1, &v2).unwrap();
-        let h2 =
-            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &v2, &v1).unwrap();
+        let h1 = compute_spending_unit_hash(
+            &id,
+            &owner,
+            &att,
+            &refr,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
+            &v1,
+            &v2,
+        )
+        .unwrap();
+        let h2 = compute_spending_unit_hash(
+            &id,
+            &owner,
+            &att,
+            &refr,
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
+            &v2,
+            &v1,
+        )
+        .unwrap();
         assert_ne!(h1, h2);
     }
 
@@ -338,47 +407,40 @@ mod tests {
         let owner = Fr::from(2u64);
         let att = Fr::from(0x5au64);
         let refr = Fr::from(0x7a11e7u64);
-        let base =
-            compute_spending_unit_hash(&id, &owner, &att, &refr, 1, 1, 1, 1, &[], &[]).unwrap();
+        let worldwide_day = 20_250_923u64; // YYYYMMDD
+        let currency = 978u16; // ISO 4217 (EUR)
+        let amount_base = 100u64;
+        let amount_atto = 0u64;
 
-        let diff_att = compute_spending_unit_hash(
-            &id,
-            &owner,
-            &Fr::from(0x5bu64),
-            &refr,
-            1,
-            1,
-            1,
-            1,
-            &[],
-            &[],
-        )
-        .unwrap();
-        let diff_ref = compute_spending_unit_hash(
-            &id,
-            &owner,
-            &att,
-            &Fr::from(0x9999u64),
-            1,
-            1,
-            1,
-            1,
-            &[],
-            &[],
-        )
-        .unwrap();
+        // Hold every non-address field fixed; vary only attester / referrer.
+        let su_hash = |attester: &Fr, referrer: &Fr| {
+            compute_spending_unit_hash(
+                &id,
+                &owner,
+                attester,
+                referrer,
+                worldwide_day,
+                currency,
+                amount_base,
+                amount_atto,
+                &[],
+                &[],
+            )
+            .unwrap()
+        };
+
+        let base = su_hash(&att, &refr);
+        let diff_att = su_hash(&Fr::from(0x5bu64), &refr);
+        let diff_ref = su_hash(&att, &Fr::from(0x9999u64));
         // Zero (no-referrer / unset) must also differ from a set value.
-        let zero_ref =
-            compute_spending_unit_hash(&id, &owner, &att, &Fr::from(0u64), 1, 1, 1, 1, &[], &[])
-                .unwrap();
+        let zero_ref = su_hash(&att, &Fr::from(0u64));
+        // attester and referrer occupy distinct positions: swapping them
+        // (when distinct) changes the hash.
+        let swapped = su_hash(&refr, &att);
 
         assert_ne!(base, diff_att, "attester must affect the hash");
         assert_ne!(base, diff_ref, "referrer must affect the hash");
         assert_ne!(base, zero_ref, "referrer=0 must differ from referrer set");
-        // attester and referrer occupy distinct positions: swapping them
-        // (when distinct) changes the hash.
-        let swapped =
-            compute_spending_unit_hash(&id, &owner, &refr, &att, 1, 1, 1, 1, &[], &[]).unwrap();
         assert_ne!(base, swapped, "attester/referrer are positionally distinct");
     }
 }
