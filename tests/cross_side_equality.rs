@@ -90,6 +90,13 @@ fn slot_address(addr: &[u8; 20]) -> [u8; 32] {
     s
 }
 
+/// The `Fr` an address reduces to when packed as a `uint160`-in-`uint256`
+/// slot and parsed `Fr::from_be_bytes_mod_order` — the exact conversion
+/// the SU-hash precompile applies to the attester / referrer slots.
+fn addr_fr(addr: &[u8; 20]) -> Fr {
+    Fr::from_be_bytes_mod_order(&slot_address(addr))
+}
+
 /// Calldata for `PsoProtocol.computeBindingHash`:
 /// `abi.encodePacked(uint256(uint160(sender)), tributeDraftId, chainId)` — 96 bytes.
 fn solidity_binding_input(sender: &[u8; 20], tdid: &[u8; 32], chain_id: u64) -> Vec<u8> {
@@ -122,13 +129,16 @@ fn solidity_td_input(
 }
 
 /// Calldata for `PsoProtocol.computeSpendingUnitHash`:
-/// `abi.encodePacked(id, owner, uint256(wwd), uint256(currency),`
+/// `abi.encodePacked(id, owner, uint256(uint160(attester)),`
+/// `   uint256(uint160(referrer)), uint256(wwd), uint256(currency),`
 /// `   uint256(base), uint256(atto), uint256(sr.length), <packed sr>,`
 /// `   uint256(ar.length), <packed ar>)`.
 #[allow(clippy::too_many_arguments)]
 fn solidity_su_input(
     id: &[u8; 32],
     owner: &[u8; 32],
+    attester: &[u8; 20],
+    referrer: &[u8; 20],
     worldwide_day: u64,
     currency: u16,
     amount_base: u64,
@@ -136,9 +146,11 @@ fn solidity_su_input(
     sr_fps: &[[u8; 32]],
     ar_fps: &[[u8; 32]],
 ) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(192 + 64 + 32 * (sr_fps.len() + ar_fps.len()));
+    let mut buf = Vec::with_capacity(256 + 64 + 32 * (sr_fps.len() + ar_fps.len()));
     buf.extend_from_slice(id);
     buf.extend_from_slice(owner);
+    buf.extend_from_slice(&slot_address(attester));
+    buf.extend_from_slice(&slot_address(referrer));
     buf.extend_from_slice(&slot_u64(worldwide_day));
     buf.extend_from_slice(&slot_u16(currency));
     buf.extend_from_slice(&slot_u64(amount_base));
@@ -248,9 +260,9 @@ mod precompile {
     }
 
     /// `0x0212` — SpendingUnit entity hash. Layout:
-    /// `[id|owner|wwd|currency|base|atto| sr_count | sr_0..sr_{M-1} | ar_count | ar_0..ar_{K-1}]`.
+    /// `[id|owner|attester|referrer|wwd|currency|base|atto| sr_count | sr_0..sr_{M-1} | ar_count | ar_0..ar_{K-1}]`.
     pub fn su_hash(input: &[u8]) -> [u8; 32] {
-        const FIXED: usize = 192;
+        const FIXED: usize = 256;
         assert!(
             input.len().is_multiple_of(SLOT),
             "su-hash precompile: input not slot-aligned"
@@ -262,21 +274,25 @@ mod precompile {
 
         let id_slot: [u8; 32] = input[..32].try_into().expect("slice");
         let owner_slot: [u8; 32] = input[32..64].try_into().expect("slice");
-        let wwd_slot: [u8; 32] = input[64..96].try_into().expect("slice");
-        let cur_slot: [u8; 32] = input[96..128].try_into().expect("slice");
-        let base_slot: [u8; 32] = input[128..160].try_into().expect("slice");
-        let atto_slot: [u8; 32] = input[160..192].try_into().expect("slice");
+        let attester_slot: [u8; 32] = input[64..96].try_into().expect("slice");
+        let referrer_slot: [u8; 32] = input[96..128].try_into().expect("slice");
+        let wwd_slot: [u8; 32] = input[128..160].try_into().expect("slice");
+        let cur_slot: [u8; 32] = input[160..192].try_into().expect("slice");
+        let base_slot: [u8; 32] = input[192..224].try_into().expect("slice");
+        let atto_slot: [u8; 32] = input[224..256].try_into().expect("slice");
 
         let id = Fr::from_be_bytes_mod_order(&id_slot);
         let owner = Fr::from_be_bytes_mod_order(&owner_slot);
+        let attester = Fr::from_be_bytes_mod_order(&attester_slot);
+        let referrer = Fr::from_be_bytes_mod_order(&referrer_slot);
         let worldwide_day = take_u64_strict(&wwd_slot, "worldwideDay");
         let currency = take_u16_strict(&cur_slot, "currency");
         let amount_base = take_u64_strict(&base_slot, "amountBase");
         let amount_atto = take_u64_strict(&atto_slot, "amountAtto");
 
-        let sr_count_slot: [u8; 32] = input[192..224].try_into().expect("slice");
+        let sr_count_slot: [u8; 32] = input[256..288].try_into().expect("slice");
         let sr_count = take_u64_strict(&sr_count_slot, "srCount") as usize;
-        let sr_start = 224;
+        let sr_start = 288;
         let sr_end = sr_start + sr_count * SLOT;
         assert!(
             sr_end + SLOT <= input.len(),
@@ -304,6 +320,8 @@ mod precompile {
         let digest = compute_spending_unit_hash(
             &id,
             &owner,
+            &attester,
+            &referrer,
             worldwide_day,
             currency,
             amount_base,
@@ -358,9 +376,20 @@ fn td_hash_fixed_vector_empty_su() {
     // Exercises precompile 0x0211 with no SU ids.
     let id_fr = Fr::from(0xdeadu64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 100u64;
+    let amount_atto = 0u64;
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 978, 100, 0, &[]).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 978, 100, 0, &[]));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &[]).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &[],
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -369,11 +398,22 @@ fn td_hash_fixed_vector_with_su() {
     // Exercises precompile 0x0211 with several SU ids.
     let id_fr = Fr::from(0xbeefu64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 840u16; // ISO 4217 (USD)
+    let amount_base = 500u64;
+    let amount_atto = 1u64;
     let su_fr: Vec<Fr> = (1..=4).map(|i: u64| Fr::from(0x1000 + i)).collect();
     let su_bytes: Vec<[u8; 32]> = su_fr.iter().map(fr_to_be_bytes).collect();
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 840, 500, 1, &su_fr).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 840, 500, 1, &su_bytes));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &su_fr).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &su_bytes,
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -384,17 +424,37 @@ fn su_hash_fixed_vector_empty_records() {
     let owner_fr = Fr::from(0xf00du64);
     let id_bytes = fr_to_be_bytes(&id_fr);
     let owner_bytes = fr_to_be_bytes(&owner_fr);
+    let attester = [0x5au8; 20];
+    let referrer = [0x7au8; 20];
+    let worldwide_day = 20_250_923u64; // YYYYMMDD
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 50u64;
+    let amount_atto = 0u64;
 
     let rust = fr_to_be_bytes(
-        &compute_spending_unit_hash(&id_fr, &owner_fr, 100, 978, 50, 0, &[], &[]).unwrap(),
+        &compute_spending_unit_hash(
+            &id_fr,
+            &owner_fr,
+            &addr_fr(&attester),
+            &addr_fr(&referrer),
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
+            &[],
+            &[],
+        )
+        .unwrap(),
     );
     let solidity = precompile::su_hash(&solidity_su_input(
         &id_bytes,
         &owner_bytes,
-        100,
-        978,
-        50,
-        0,
+        &attester,
+        &referrer,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &[],
         &[],
     ));
@@ -409,21 +469,41 @@ fn su_hash_fixed_vector_with_records() {
     let id_bytes = fr_to_be_bytes(&id_fr);
     let owner_bytes = fr_to_be_bytes(&owner_fr);
 
+    let attester = [0x5au8; 20];
+    let referrer = [0x7au8; 20];
+    let worldwide_day = 20_250_923u64; // YYYYMMDD
+    let currency = 978u16; // ISO 4217 (EUR)
+    let amount_base = 50u64;
+    let amount_atto = 42u64;
     let sr_fr: Vec<Fr> = (0..3).map(|i: u64| Fr::from(2000 + i)).collect();
     let ar_fr: Vec<Fr> = (0..5).map(|i: u64| Fr::from(3000 + i)).collect();
     let sr_bytes: Vec<[u8; 32]> = sr_fr.iter().map(fr_to_be_bytes).collect();
     let ar_bytes: Vec<[u8; 32]> = ar_fr.iter().map(fr_to_be_bytes).collect();
 
     let rust = fr_to_be_bytes(
-        &compute_spending_unit_hash(&id_fr, &owner_fr, 100, 978, 50, 42, &sr_fr, &ar_fr).unwrap(),
+        &compute_spending_unit_hash(
+            &id_fr,
+            &owner_fr,
+            &addr_fr(&attester),
+            &addr_fr(&referrer),
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
+            &sr_fr,
+            &ar_fr,
+        )
+        .unwrap(),
     );
     let solidity = precompile::su_hash(&solidity_su_input(
         &id_bytes,
         &owner_bytes,
-        100,
-        978,
-        50,
-        42,
+        &attester,
+        &referrer,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &sr_bytes,
         &ar_bytes,
     ));
@@ -501,6 +581,8 @@ proptest! {
     fn su_hash_property(
         id_bytes in any::<[u8; 32]>(),
         owner_bytes in any::<[u8; 32]>(),
+        attester in any::<[u8; 20]>(),
+        referrer in any::<[u8; 20]>(),
         worldwide_day in any::<u64>(),
         currency in any::<u16>(),
         amount_base in any::<u64>(),
@@ -519,6 +601,8 @@ proptest! {
             &compute_spending_unit_hash(
                 &id_fr,
                 &owner_fr,
+                &addr_fr(&attester),
+                &addr_fr(&referrer),
                 worldwide_day,
                 currency,
                 amount_base,
@@ -531,6 +615,8 @@ proptest! {
         let solidity = precompile::su_hash(&solidity_su_input(
             &id_bytes,
             &owner_bytes,
+            &attester,
+            &referrer,
             worldwide_day,
             currency,
             amount_base,
@@ -551,11 +637,22 @@ fn td_hash_extreme_su_count() {
     // Exercises precompile 0x0211 at a non-trivial vector length.
     let id_fr = Fr::from(1u64);
     let id_bytes = fr_to_be_bytes(&id_fr);
+    let currency = 840u16; // ISO 4217 (USD)
+    let amount_base = 1u64;
+    let amount_atto = 1u64;
     let su_fr: Vec<Fr> = (0..64).map(|i: u64| Fr::from(7919 + i)).collect();
     let su_bytes: Vec<[u8; 32]> = su_fr.iter().map(fr_to_be_bytes).collect();
 
-    let rust = fr_to_be_bytes(&compute_tribute_draft_hash(&id_fr, 840, 1, 1, &su_fr).unwrap());
-    let solidity = precompile::td_hash(&solidity_td_input(&id_bytes, 840, 1, 1, &su_bytes));
+    let rust = fr_to_be_bytes(
+        &compute_tribute_draft_hash(&id_fr, currency, amount_base, amount_atto, &su_fr).unwrap(),
+    );
+    let solidity = precompile::td_hash(&solidity_td_input(
+        &id_bytes,
+        currency,
+        amount_base,
+        amount_atto,
+        &su_bytes,
+    ));
     assert_eq!(rust, solidity);
 }
 
@@ -566,6 +663,14 @@ fn su_hash_extreme_record_counts() {
     let owner_fr = Fr::from(2u64);
     let id_bytes = fr_to_be_bytes(&id_fr);
     let owner_bytes = fr_to_be_bytes(&owner_fr);
+    let attester = [0xffu8; 20];
+    let referrer = [0x00u8; 20];
+    // Max-boundary coverage of the numeric-field encoding — deliberately
+    // extreme rather than realistic (worldwide_day is normally YYYYMMDD).
+    let worldwide_day = u64::MAX;
+    let currency = u16::MAX;
+    let amount_base = u64::MAX;
+    let amount_atto = u64::MAX;
     let sr_fr: Vec<Fr> = (0..32).map(|i: u64| Fr::from(1000 + i)).collect();
     let ar_fr: Vec<Fr> = (0..16).map(|i: u64| Fr::from(5000 + i)).collect();
     let sr_bytes: Vec<[u8; 32]> = sr_fr.iter().map(fr_to_be_bytes).collect();
@@ -575,10 +680,12 @@ fn su_hash_extreme_record_counts() {
         &compute_spending_unit_hash(
             &id_fr,
             &owner_fr,
-            u64::MAX,
-            u16::MAX,
-            u64::MAX,
-            u64::MAX,
+            &addr_fr(&attester),
+            &addr_fr(&referrer),
+            worldwide_day,
+            currency,
+            amount_base,
+            amount_atto,
             &sr_fr,
             &ar_fr,
         )
@@ -587,10 +694,12 @@ fn su_hash_extreme_record_counts() {
     let solidity = precompile::su_hash(&solidity_su_input(
         &id_bytes,
         &owner_bytes,
-        u64::MAX,
-        u16::MAX,
-        u64::MAX,
-        u64::MAX,
+        &attester,
+        &referrer,
+        worldwide_day,
+        currency,
+        amount_base,
+        amount_atto,
         &sr_bytes,
         &ar_bytes,
     ));

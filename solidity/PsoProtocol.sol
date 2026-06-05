@@ -101,9 +101,15 @@ library PsoProtocol {
     /// @notice Compute the SpendingUnit entity hash.
     ///
     /// @dev    Input layout (variable, big-endian uint256 slots):
-    ///         `[id | owner | wwd_padded | currency_padded | base_padded |`
-    ///         `atto_padded | sr_count_padded | sr_0 | ... | sr_{M-1} |`
+    ///         `[id | owner | attester_padded | referrer_padded |`
+    ///         `wwd_padded | currency_padded | base_padded | atto_padded |`
+    ///         `sr_count_padded | sr_0 | ... | sr_{M-1} |`
     ///         `ar_count_padded | ar_0 | ... | ar_{K-1}]`.
+    ///
+    ///         `attester` / `referrer` are the SU's consent addresses,
+    ///         each `uint160` right-aligned in a `uint256` slot. They sit
+    ///         immediately after `owner` so the consent attribution is
+    ///         bound into the SU's identity (mirrors `SpendingUnitEntity`).
     ///
     ///         The two count slots are required because SR and AR are
     ///         separate vectors entering the iterated chain at different
@@ -112,6 +118,8 @@ library PsoProtocol {
     function computeSpendingUnitHash(
         bytes32 id,
         bytes32 owner,
+        address attester,
+        address referrer,
         uint64 worldwideDay,
         uint16 currency,
         uint64 amountBase,
@@ -122,6 +130,8 @@ library PsoProtocol {
         bytes memory input = abi.encodePacked(
             id,
             owner,
+            uint256(uint160(attester)),
+            uint256(uint160(referrer)),
             uint256(worldwideDay),
             uint256(currency),
             uint256(amountBase),
