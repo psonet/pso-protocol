@@ -173,14 +173,32 @@ contract PsoProtocolTest is Test {
         arFps[2] = bytes32(uint256(3002));
 
         bytes memory expectedInput = _expectedSuInput(
-            id, owner, attester, referrer, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
+            id,
+            owner,
+            attester,
+            referrer,
+            worldwideDay,
+            currency,
+            amountBase,
+            amountAtto,
+            srFps,
+            arFps
         );
         bytes32 expectedOut = bytes32(uint256(0xfacefeed));
 
         vm.mockCall(PsoProtocol.SU_HASH_PRECOMPILE, expectedInput, abi.encode(expectedOut));
 
         bytes32 got = PsoProtocol.computeSpendingUnitHash(
-            id, owner, attester, referrer, worldwideDay, currency, amountBase, amountAtto, srFps, arFps
+            id,
+            owner,
+            attester,
+            referrer,
+            worldwideDay,
+            currency,
+            amountBase,
+            amountAtto,
+            srFps,
+            arFps
         );
         assertEq(got, expectedOut, "SU wrapper did not return precompile output unchanged");
     }
