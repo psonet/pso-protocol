@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.7.1 - 2026-06-16
+#### Bug Fixes
+- (**imt**) remove the stale, unused TREE_DEPTH constant - (5d1f26b) - Anton Velichko
+
+- - -
+
 ## v0.7.0 - 2026-06-16
 #### Features
 - (**binding**) generic commitment_id (was tribute_draft_id); clarify Poseidon4 layout - (c284228) - Anton Velichko
