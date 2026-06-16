@@ -1,10 +1,15 @@
 //! Incremental Merkle Tree (IMT) hashing for the TributeDraft commitment
-//! windows.
+//! tree.
 //!
-//! A binary, append-only Poseidon2 Merkle tree of fixed depth
-//! [`TREE_DEPTH`] (one tree per open commitment window). This module is the
-//! **single canonical implementation** of the window tree's hashing and
-//! inclusion semantics — the one inclusion-proof primitive — shared by:
+//! A binary, append-only Poseidon2 Merkle tree of a fixed, caller-supplied
+//! depth — ONE perpetual tree (it forks under a bumped `treeId` only on
+//! capacity exhaustion; no per-window lifecycle). The depth is owned by the
+//! chain's single source of truth — `pso_abi::addresses::INCLUSION_DEPTH` /
+//! Solidity `CommitmentWindowBase.TREE_DEPTH` (currently 32) — and must
+//! equal the in-circuit membership-path length; this module deliberately
+//! keeps no second depth constant of its own. It is the **single canonical
+//! implementation** of the tree's hashing and inclusion semantics — the one
+//! inclusion-proof primitive — shared by:
 //!
 //! - the on-chain stateless frontier-insert precompile (`0x0204`), which
 //!   appends a leaf and returns the changed frontier slot + new root
@@ -20,7 +25,7 @@
 //! the caller-supplied **empty-leaf** value (`zero[0] = empty_leaf`,
 //! `zero[i] = Poseidon2(zero[i-1], zero[i-1])`), so this module stays
 //! agnostic of the leaf formula (the TD leaf, `0x0213`): the commitment
-//! window seeds it with `Poseidon2(TAG_TD_LEAF, 0, 0, 0)`.
+//! tree seeds it with `Poseidon2(TAG_TD_LEAF, 0, 0, 0)`.
 //!
 //! `Fr`↔bytes encoding is the caller's concern; the Solidity boundary uses
 //! big-endian `bytes32`.
@@ -39,12 +44,6 @@ use ark_bn254::Fr;
 
 use crate::error::ProtocolError;
 use crate::hash::poseidon2;
-
-/// Commitment-window tree depth. Matches `CommitmentWindowBase.TREE_DEPTH`
-/// and the in-circuit membership-path length. Fixed because the on-chain
-/// frontier is a fixed-size storage array; changing it is a coordinated
-/// migration with the prover/verifier (and a major-version bump).
-pub const TREE_DEPTH: usize = 26;
 
 /// Parent node hash: `Poseidon2(left, right)`.
 pub fn node_hash(left: Fr, right: Fr) -> Result<Fr, ProtocolError> {
@@ -67,8 +66,8 @@ pub fn zero_ladder(empty_leaf: Fr, depth: usize) -> Result<Vec<Fr>, ProtocolErro
 
 /// Root of the empty depth-`depth` tree for the given `empty_leaf`.
 ///
-/// The commitment window uses this for `CommitmentWindowBase._emptyTreeRoot`
-/// with `depth = TREE_DEPTH` and `empty_leaf = Poseidon2(TAG_TD_LEAF, 0,0,0)`.
+/// `CommitmentWindowBase._emptyTreeRoot` uses this with the chain's
+/// `INCLUSION_DEPTH` (32) and `empty_leaf = Poseidon2(TAG_TD_LEAF, 0,0,0)`.
 pub fn empty_root(empty_leaf: Fr, depth: usize) -> Result<Fr, ProtocolError> {
     Ok(zero_ladder(empty_leaf, depth)?[depth])
 }
