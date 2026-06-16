@@ -129,10 +129,10 @@ pub struct OwnershipPublicInputs {
     pub ownership: [u8; 32],
     /// Per-NFT entity hash. 32-byte BE Fr. Public.
     pub nft_hash: [u8; 32],
-    /// Submission binding hash `compute_binding_hash(sender, tributeDraftId,
+    /// Submission binding hash `compute_binding_hash(sender, commitmentId,
     /// chainId)`, 32-byte BE Fr. Public. Folded into the Schnorr pre-hash
-    /// so the proof is valid only under the `(sender, tdId, chainId)` it
-    /// was minted for; the verifier recomputes it via precompile `0x0210`.
+    /// so the proof is valid only under the `(sender, commitmentId, chainId)`
+    /// it was minted for; the verifier recomputes it via precompile `0x0210`.
     pub binding_hash: [u8; 32],
     /// Grumpkin Schnorr signature over
     /// `Poseidon3(nft_hash, nonce, binding_hash).to_be_bytes()`, 64 bytes
