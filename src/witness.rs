@@ -108,11 +108,11 @@ impl fmt::Debug for OwnershipPrivateInputs {
 /// Public inputs for the §4.2 single-NFT ownership proof.
 ///
 /// `nft_hash` was added in the §4.2 redesign — the Schnorr-signed
-/// payload is `Poseidon2(nft_hash, nonce).to_be_bytes()` per the
-/// Noir circuit (`pso-circuit-core/src/ownership.nr`), so the
-/// circuit takes the entity hash as a public input and the
-/// verifier recomputes the same pre-hash to bind the proof to a
-/// specific NFT.
+/// payload is `Poseidon3(nft_hash, nonce, binding_hash).to_be_bytes()`
+/// per the Noir circuit (`pso-circuit-core/src/ownership.nr`), so the
+/// circuit takes the entity hash and the submission `binding_hash` as
+/// public inputs and the verifier recomputes the same pre-hash to bind
+/// the proof to a specific NFT and a specific `(sender, tdId, chainId)`.
 ///
 /// `signature` is **logically private** in the §4.2 circuit (the
 /// circuit's `main()` declares it as a private parameter). It lives
@@ -129,9 +129,14 @@ pub struct OwnershipPublicInputs {
     pub ownership: [u8; 32],
     /// Per-NFT entity hash. 32-byte BE Fr. Public.
     pub nft_hash: [u8; 32],
+    /// Submission binding hash `compute_binding_hash(sender, tributeDraftId,
+    /// chainId)`, 32-byte BE Fr. Public. Folded into the Schnorr pre-hash
+    /// so the proof is valid only under the `(sender, tdId, chainId)` it
+    /// was minted for; the verifier recomputes it via precompile `0x0210`.
+    pub binding_hash: [u8; 32],
     /// Grumpkin Schnorr signature over
-    /// `Poseidon2(nft_hash, nonce).to_be_bytes()`, 64 bytes (`s || e`,
-    /// each 32 bytes BE). **Private witness** — exposed in this
+    /// `Poseidon3(nft_hash, nonce, binding_hash).to_be_bytes()`, 64 bytes
+    /// (`s || e`, each 32 bytes BE). **Private witness** — exposed in this
     /// struct for convenience but routed to the private slot by the
     /// witness builders.
     pub signature: [u8; 64],
@@ -198,81 +203,17 @@ pub struct FullProofWitness {
     pub public_inputs: FullProofPublicInputs,
 }
 
-// =====================================================================
-// SU-ownership aggregation witness
-// =====================================================================
-
-/// One real (nonce, derived_owner) pair the wallet wants to aggregate.
-///
-/// `derived_owner` must equal
-/// `pso_protocol::ownership::compute_ownership(pk_x, pk_y, nonce)`
-/// under the wallet's keypair — the on-chain SU was minted with this
-/// value at `SpendingUnit.derivedOwner`. The aggregation circuit
-/// re-derives it from `nonce` and asserts equality.
-#[derive(Clone, Copy, Debug)]
-pub struct AggregationSlot {
-    /// Per-SU randomness.
-    pub nonce: Fr,
-    /// Pre-computed ownership commitment.
-    pub derived_owner: Fr,
-}
-
-/// Private inputs for the SU-ownership aggregation circuit.
-///
-/// `nonces` length must equal the circuit's compile-time `N`. For
-/// padded slots (when real SU count < tier_n), set the corresponding
-/// nonce to any value — the circuit's check trivializes when
-/// `derived_owners[i] == 0`.
-#[derive(Clone)]
-pub struct AggregationPrivateInputs {
-    /// Grumpkin public-key X coordinate, 32-byte BE Fr.
-    pub public_key_x: [u8; 32],
-    /// Grumpkin public-key Y coordinate, 32-byte BE Fr.
-    pub public_key_y: [u8; 32],
-    /// One Fr nonce per tier slot, 32-byte BE Fr each.
-    pub nonces: Vec<[u8; 32]>,
-    /// Grumpkin Schnorr signature over `binding_hash.to_be_bytes()`.
-    pub signature: [u8; 64],
-}
-
-impl fmt::Debug for AggregationPrivateInputs {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AggregationPrivateInputs")
-            .field("public_key_x", &"[REDACTED]")
-            .field("public_key_y", &"[REDACTED]")
-            .field(
-                "nonces",
-                &format_args!("[REDACTED; {} slots]", self.nonces.len()),
-            )
-            .field("signature", &"[REDACTED]")
-            .finish()
-    }
-}
-
-/// Public inputs for the SU-ownership aggregation circuit.
-///
-/// **Order matters** — the wallet feeds these to the circuit in the
-/// same order the on-chain `TributeDraft` contract assembles its
-/// expected public-input vector: `[derived_owners[0..N], binding_hash]`.
-/// The contract byte-compares the proof prefix against this vector.
-#[derive(Clone, Debug)]
-pub struct AggregationPublicInputs {
-    /// One Fr derived-owner per tier slot, 32-byte BE Fr each.
-    /// Real slots equal `compute_ownership(pk_x, pk_y, nonces[i])`;
-    /// padded slots are 32 zero bytes.
-    pub derived_owners: Vec<[u8; 32]>,
-    /// `compute_binding_hash(sender, tribute_draft_id, chain_id)`, 32-byte BE Fr.
-    pub binding_hash: [u8; 32],
-}
-
-/// Complete witness for the SU-ownership aggregation circuit.
-#[derive(Clone, Debug)]
-pub struct AggregationWitness {
-    /// Private inputs.
-    pub private_inputs: AggregationPrivateInputs,
-    /// Public inputs.
-    pub public_inputs: AggregationPublicInputs,
-}
+// NOTE: the pre-§4.2 `Aggregation{Slot,PrivateInputs,PublicInputs,Witness}`
+// types were removed here. They encoded the original flat-aggregation
+// binding design — public vector `[derived_owners[0..N], binding_hash]`
+// with a single Schnorr signature over `binding_hash` — which the §4.2
+// redesign superseded with the per-SU `[owner_i, nft_hash_i, …,
+// binding_hash]` circuit (per-SU keys + signatures over
+// `Poseidon3(nft_hash, nonce, binding_hash)`). The live aggregation
+// witness now lives in `pso-integrations-shared::witness`
+// (`FlatAggregationSlot` / `build_flat_aggregation_witness`); these
+// stale types were referenced nowhere and documented a layout nothing
+// implemented.
 
 #[cfg(test)]
 mod tests {
@@ -290,6 +231,7 @@ mod tests {
             public_inputs: OwnershipPublicInputs {
                 ownership: [0u8; 32],
                 nft_hash: [0u8; 32],
+                binding_hash: [0u8; 32],
                 signature: [0u8; 64],
             },
         };
@@ -315,6 +257,7 @@ mod tests {
                 ownership: OwnershipPublicInputs {
                     ownership: [0u8; 32],
                     nft_hash: [0u8; 32],
+                    binding_hash: [0u8; 32],
                     signature: [0u8; 64],
                 },
                 merkle_root: [0u8; 32],
@@ -343,22 +286,6 @@ mod tests {
         }
         // No hex digits of the raw bytes should leak.
         for byte_hex in ["2a", "63", "58"] {
-            assert!(!s.contains(byte_hex), "byte {byte_hex} leaked in: {s}");
-        }
-    }
-
-    #[test]
-    fn aggregation_private_inputs_debug_redacts_all_fields() {
-        let inputs = AggregationPrivateInputs {
-            public_key_x: [0xaau8; 32],
-            public_key_y: [0xbbu8; 32],
-            nonces: vec![[0xccu8; 32]; 3],
-            signature: [0xddu8; 64],
-        };
-        let s = format!("{:?}", inputs);
-        assert!(s.contains("[REDACTED]"));
-        assert!(s.contains("3 slots"));
-        for byte_hex in ["aa", "bb", "cc", "dd"] {
             assert!(!s.contains(byte_hex), "byte {byte_hex} leaked in: {s}");
         }
     }
