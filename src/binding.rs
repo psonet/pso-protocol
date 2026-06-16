@@ -1,10 +1,16 @@
-//! TributeDraft ↔ ZK-proof binding hash.
+//! Commitment ↔ ZK-proof binding hash.
 //!
 //! The binding hash is the commitment that links an EVM-side
-//! `TributeDraft` submission to its off-chain ZK proof. It hashes
-//! `(sender, tribute_draft_id, chain_id)` into a single BN254 field
-//! element using single-shot Poseidon4 with the two-limb decomposition
-//! described below.
+//! commitment-token submission to its off-chain ZK ownership proof. It
+//! hashes `(sender, commitment_id, chain_id)` into a single BN254 field
+//! element using single-shot **Poseidon4** with the two-limb id
+//! decomposition described below.
+//!
+//! `commitment_id` is the id of whatever commitment token the submission
+//! mints — generic, not TributeDraft-specific. In practice `TributeDraft`
+//! is the predeploy wallets call directly with an aggregation proof, so
+//! `commitment_id` is the `tributeDraftId` there; the binding mechanism
+//! itself is agnostic to which commitment token it guards.
 //!
 //! ## Bound to precompile `0x0210`
 //!
@@ -15,18 +21,22 @@
 //!
 //! ## Byte layout
 //!
-//! The four inputs to Poseidon4 are produced as follows:
+//! Poseidon4 takes **four** field inputs (the logical triple
+//! `(sender, commitment_id, chain_id)`, with `commitment_id` occupying
+//! two limbs):
 //!
-//! | Field           | Source                                | Decoding                                            |
-//! | --------------- | ------------------------------------- | --------------------------------------------------- |
-//! | `sender_fr`     | EVM address (20 BE bytes)             | Zero-pad to 32 BE bytes, `Fr::from_be_bytes_mod_order`. |
-//! | `tdid_lo`       | Lower 128 bits of `tributeDraftId`    | `bytes[16..32]` of the BE `uint256`.                |
-//! | `tdid_hi`       | Upper 128 bits of `tributeDraftId`    | `bytes[0..16]` of the BE `uint256`.                 |
-//! | `chainid_fr`    | EVM chain id (u64)                    | `Fr::from(chain_id)`. The on-chain side passes the full `uint256` and the precompile mod-reduces; values < 2^64 are byte-identical. |
+//! | Field         | Source                              | Decoding                                            |
+//! | ------------- | ----------------------------------- | --------------------------------------------------- |
+//! | `sender_fr`   | EVM address (20 BE bytes)           | Zero-pad to 32 BE bytes, `Fr::from_be_bytes_mod_order` (160 bits < Fr.p, canonical). |
+//! | `cid_lo`      | Lower 128 bits of `commitment_id`   | `bytes[16..32]` of the BE `uint256`.                |
+//! | `cid_hi`      | Upper 128 bits of `commitment_id`   | `bytes[0..16]` of the BE `uint256`.                 |
+//! | `chainid_fr` | EVM chain id (`u64`)                | `Fr::from(chain_id)`. A `u64` is < 2^64 ≪ Fr.p, so it is canonical by construction — no split or reduction needed. |
 //!
-//! Splitting `tdid` into two 128-bit limbs avoids BN254 Fr overflow:
-//! the scalar modulus is ≈ 2^253.6, so a full 256-bit value cannot fit
-//! in one Fr without ambiguous reduction.
+//! Why `commitment_id` is split but `chain_id` is not: a `uint256` id can
+//! exceed the BN254 scalar modulus (≈ 2^253.6), so a single-Fr decode would
+//! reduce ambiguously — splitting into two 128-bit limbs keeps each input
+//! canonical. `chain_id` is a `u64`, already well below Fr.p, so the same
+//! `< Fr.p` invariant holds for free.
 
 use ark_bn254::Fr;
 use ark_ff::PrimeField;
@@ -35,17 +45,20 @@ use crate::error::ProtocolError;
 use crate::fr::split_u256_be_into_limbs;
 use crate::hash::poseidon4;
 
-/// Compute the TributeDraft ↔ ZK-proof binding hash.
+/// Compute the commitment ↔ ZK-proof binding hash.
 ///
-/// Mirrors `TributeDraft._bindingHash` byte-for-byte, and the legacy
+/// Mirrors the on-chain `0x0210` precompile byte-for-byte, and the
 /// inline copies in `pso_mobile_integration::api::compute_binding_hash`
 /// and `pso_zk_cli::commands::aggregate::compute_binding_hash`.
 ///
 /// # Inputs
 ///
 /// - `sender`: 20-byte EVM address, big-endian.
-/// - `tribute_draft_id`: 32-byte `uint256` id, big-endian.
-/// - `chain_id`: EVM chain id, fits in `u64` by spec.
+/// - `commitment_id`: 32-byte `uint256` id of the commitment token the
+///   submission mints (e.g. `tributeDraftId`), big-endian.
+/// - `chain_id`: EVM chain id. A `u64` by spec, hence always < Fr.p and
+///   canonical without any overflow check (unlike `commitment_id`, which
+///   is split into two limbs to stay canonical).
 ///
 /// # Returns
 ///
@@ -53,7 +66,7 @@ use crate::hash::poseidon4;
 /// crossing the chain boundary (see `fr::fr_to_be_bytes`).
 pub fn compute_binding_hash(
     sender: &[u8; 20],
-    tribute_draft_id: &[u8; 32],
+    commitment_id: &[u8; 32],
     chain_id: u64,
 ) -> Result<Fr, ProtocolError> {
     // Pad the 20-byte sender into a 32-byte BE slot (left-padded).
@@ -61,12 +74,15 @@ pub fn compute_binding_hash(
     sender_be32[12..32].copy_from_slice(sender);
     let sender_fr = Fr::from_be_bytes_mod_order(&sender_be32);
 
-    // Split the 256-bit tributeDraftId into two 128-bit limbs.
-    let [tdid_lo, tdid_hi] = split_u256_be_into_limbs(tribute_draft_id);
+    // Split the 256-bit commitment_id into two 128-bit limbs so each is
+    // < Fr.p (a single-Fr decode of a full uint256 would reduce ambiguously).
+    let [cid_lo, cid_hi] = split_u256_be_into_limbs(commitment_id);
 
+    // chain_id is a u64 (< 2^64 ≪ Fr.p) — canonical by construction, no
+    // split or `< Fr.p` check required.
     let chainid_fr = Fr::from(chain_id);
 
-    poseidon4(sender_fr, tdid_lo, tdid_hi, chainid_fr)
+    poseidon4(sender_fr, cid_lo, cid_hi, chainid_fr)
 }
 
 #[cfg(test)]
@@ -80,24 +96,24 @@ mod tests {
     /// manipulations and Poseidon call. Asserting equality with
     /// `compute_binding_hash` proves the refactor preserves bytes —
     /// the whole reason this crate exists.
-    fn original_inline(sender: &[u8], tribute_draft_id: &[u8], chain_id: u64) -> Fr {
+    fn original_inline(sender: &[u8], commitment_id: &[u8], chain_id: u64) -> Fr {
         let mut sender_le = [0u8; 32];
         for (i, b) in sender.iter().rev().enumerate() {
             sender_le[i] = *b;
         }
         let sender_fr = Fr::from_le_bytes_mod_order(&sender_le);
 
-        let mut tdid_lo_le = [0u8; 32];
-        for (i, b) in tribute_draft_id[16..32].iter().rev().enumerate() {
-            tdid_lo_le[i] = *b;
+        let mut cid_lo_le = [0u8; 32];
+        for (i, b) in commitment_id[16..32].iter().rev().enumerate() {
+            cid_lo_le[i] = *b;
         }
-        let tdid_lo_fr = Fr::from_le_bytes_mod_order(&tdid_lo_le);
+        let tdid_lo_fr = Fr::from_le_bytes_mod_order(&cid_lo_le);
 
-        let mut tdid_hi_le = [0u8; 32];
-        for (i, b) in tribute_draft_id[0..16].iter().rev().enumerate() {
-            tdid_hi_le[i] = *b;
+        let mut cid_hi_le = [0u8; 32];
+        for (i, b) in commitment_id[0..16].iter().rev().enumerate() {
+            cid_hi_le[i] = *b;
         }
-        let tdid_hi_fr = Fr::from_le_bytes_mod_order(&tdid_hi_le);
+        let tdid_hi_fr = Fr::from_le_bytes_mod_order(&cid_hi_le);
 
         let chainid_fr = Fr::from(chain_id);
 

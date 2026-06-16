@@ -1,9 +1,9 @@
 //! Single-shot `Poseidon4` over BN254 Fr.
 //!
 //! Used by the binding hash (`binding.rs`), which combines four field
-//! elements — `sender_field`, two 128-bit limbs of `tribute_draft_id`,
+//! elements — `sender_field`, two 128-bit limbs of `commitment_id`,
 //! and `chain_id` — into a single commitment that the on-chain
-//! `TributeDraft` contract recomputes to anchor the ZK proof.
+//! commitment-token contract recomputes to anchor the ZK proof.
 //!
 //! Like `poseidon5`, this is **not** the iterated Poseidon2 of
 //! [`ProtocolHasher`]. The binding formula was designed before the

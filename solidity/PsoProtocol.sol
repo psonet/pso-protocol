@@ -44,23 +44,24 @@ library PsoProtocol {
     // Binding hash
     // ---------------------------------------------------------------------
 
-    /// @notice Compute the off-chain ↔ on-chain binding hash for a tribute
-    ///         draft. Mirrors `pso_protocol::binding::compute_binding_hash`
-    ///         byte-for-byte.
+    /// @notice Compute the off-chain ↔ on-chain binding hash for a
+    ///         commitment-token submission. Mirrors
+    ///         `pso_protocol::binding::compute_binding_hash` byte-for-byte.
     ///
     /// @dev    Input layout (96 bytes, big-endian uint256 slots):
-    ///         `[sender_padded_uint256 | tributeDraftId | chainId]`.
+    ///         `[sender_padded_uint256 | commitmentId | chainId]`.
     ///
-    /// @param  sender         The EVM address binding the proof.
-    /// @param  tributeDraftId The TD id being bound (as `uint256`).
-    /// @param  chainId        The chain id of the verifying network.
+    /// @param  sender       The EVM address binding the proof.
+    /// @param  commitmentId The id of the commitment token being bound (as
+    ///                      `uint256`); e.g. the `tributeDraftId` for a TD.
+    /// @param  chainId      The chain id of the verifying network.
     /// @return The 32-byte BN254 Fr digest, big-endian.
-    function computeBindingHash(address sender, uint256 tributeDraftId, uint256 chainId)
+    function computeBindingHash(address sender, uint256 commitmentId, uint256 chainId)
         internal
         view
         returns (bytes32)
     {
-        bytes memory input = abi.encodePacked(uint256(uint160(sender)), tributeDraftId, chainId);
+        bytes memory input = abi.encodePacked(uint256(uint160(sender)), commitmentId, chainId);
         (bool ok, bytes memory ret) = BINDING_HASH_PRECOMPILE.staticcall(input);
         if (!ok || ret.length != 32) revert PsoProtocolPrecompileFailed(BINDING_HASH_PRECOMPILE);
         return bytes32(ret);
