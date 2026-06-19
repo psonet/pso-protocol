@@ -1,34 +1,38 @@
-[package]
-name        = "pso-protocol"
-version     = "0.7.1"
-edition     = "2021"
-authors     = ["PSO Lab"]
-license     = "MIT"
-repository  = "https://github.com/psonet/pso-protocol"
-description = "PSO consensus-binding primitives (hash formulas, witness types) shared by wallets, chain precompiles, and Solidity contracts"
-readme      = "README.md"
-keywords    = ["pso", "poseidon", "bn254", "zero-knowledge", "consensus"]
-categories  = ["cryptography"]
+[workspace]
+members = ["crates/*"]
+resolver = "2"
 
-# v0.1 ships std-only because the underlying pso-poseidon crate is not yet
-# no_std. The feature shape is laid out for a future no_std story: every
-# upstream dependency that supports it is declared `default-features = false`
-# and re-enabled through the `std` feature. When pso-poseidon goes no_std,
-# this crate can flip `default = []` without touching the public API.
-[features]
-default = ["std"]
-std = [
-    "thiserror/std",
-    "ark-ff/std",
-    "ark-bn254/std",
-]
+# Shared across the published crates so `pso-protocol` and its
+# `pso-protocol-derive` companion always ship at the same version. The
+# cocogitto pre-bump hook rewrites the first `^version` line below.
+[workspace.package]
+version    = "0.7.1"
+edition    = "2021"
+authors    = ["PSO Lab"]
+license    = "MIT"
+repository = "https://github.com/psonet/pso-protocol"
 
-[dependencies]
-ark-bn254 = { version = "0.5", default-features = false, features = ["curve"] }
-ark-ff    = { version = "0.5", default-features = false }
-pso-poseidon = "0.3"
-thiserror = { version = "2", default-features = false }
-
-[dev-dependencies]
-hex = "0.4"
-proptest = { version = "1", default-features = false, features = ["std"] }
+# Centralized dependency versions. Members opt in with `{ workspace = true }`
+# and add their own features; versions/default-features are pinned once here.
+[workspace.dependencies]
+ark-bn254     = { version = "0.6", default-features = false }
+ark-grumpkin  = { version = "0.6", default-features = false }
+ark-ff        = { version = "0.6", default-features = false }
+ark-ec        = { version = "0.6", default-features = false }
+ark-std       = { version = "0.6", default-features = false }
+ark-serialize = { version = "0.6", default-features = false }
+# Type-level byte-length sizing for the Codec key (de)serialization.
+generic-array = "1"
+pso-poseidon  = "0.4"
+# Pure-Rust BLAKE2s for the barretenberg-compatible Grumpkin Schnorr challenge.
+blake2        = { version = "0.10", default-features = false }
+alloy-primitives = { version = "1", default-features = false }
+thiserror     = { version = "2", default-features = false }
+# Floor (not exact pin) so a downstream noir acvm toolchain — which pulls
+# `der 0.8 -> zeroize ^1.8` — can coexist in one workspace resolution.
+zeroize        = { version = "1.7", default-features = false }
+zeroize_derive = { version = "1.4", default-features = false }
+# pso-protocol-derive proc-macro stack.
+syn         = { version = "2", features = ["full"] }
+quote       = "1"
+proc-macro2 = "1"

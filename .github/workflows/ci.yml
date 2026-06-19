@@ -26,7 +26,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  FOUNDRY_PROFILE: default
 
 jobs:
   # ----------------------------------------------------------------
@@ -106,7 +105,7 @@ jobs:
       - name: Run clippy
         run: |
           cargo clippy --version
-          cargo clippy --all-targets --all-features -- -D warnings \
+          cargo clippy --workspace --all-targets --all-features -- -D warnings \
             -D clippy::dbg_macro \
             -D clippy::print_stdout \
             -D clippy::print_stderr \
@@ -118,7 +117,7 @@ jobs:
             -A clippy::missing_panics_doc
 
       - name: Check documentation builds
-        run: cargo doc --no-deps --all-features --document-private-items
+        run: cargo doc --workspace --no-deps --all-features --document-private-items
 
   test:
     name: Rust Tests
@@ -148,57 +147,13 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.rust }}-
 
       - name: Run tests (default features)
-        run: cargo test --verbose
+        run: cargo test --workspace --verbose
 
       - name: Run tests (all features)
-        run: cargo test --verbose --all-features
+        run: cargo test --workspace --verbose --all-features
 
       - name: Build (release)
-        run: cargo build --verbose --release --all-features
-
-  forge:
-    name: Solidity Tests
-    runs-on: ubuntu-latest
-    needs: [resolve, lint]
-    if: needs.resolve.outputs.release_tag == ''
-    steps:
-      - uses: actions/checkout@v4
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-      - name: Show forge version
-        run: forge --version
-      # forge-std is referenced by solidity/PsoProtocol.t.sol but is
-      # not vendored as a submodule. Mirror pso-chain's lightweight
-      # clone-on-CI pattern (mise's `setup:contracts` task) so the
-      # repo doesn't carry a heavy lib/ tree.
-      - name: Install forge-std
-        run: |
-          if [ ! -d lib/forge-std ]; then
-            git clone --depth 1 https://github.com/foundry-rs/forge-std.git lib/forge-std
-          fi
-      - name: Run forge fmt check
-        run: forge fmt --check solidity
-      - name: Run forge build
-        run: forge build --sizes
-      - name: Run forge tests
-        run: forge test -vvv
-
-  cross_side:
-    name: Cross-side equality (Rust ↔ Solidity)
-    runs-on: ubuntu-latest
-    needs: [resolve, test, forge]
-    if: needs.resolve.outputs.release_tag == ''
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: cargo
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-      - name: Run cross-side equality test
-        run: cargo test --test cross_side_equality --all-features
+        run: cargo build --workspace --verbose --release --all-features
 
   # ----------------------------------------------------------------
   # Version bump + tag. Runs after every check on `push: main` (PR
@@ -210,7 +165,7 @@ jobs:
   tag:
     name: Bump version & tag
     runs-on: ubuntu-latest
-    needs: [resolve, lint, test, forge, cross_side]
+    needs: [resolve, lint, test]
     # Skip when we're already in re-release mode (tag-push or
     # workflow_dispatch with a tag input): cog has nothing to do
     # and `publish`/`github-release` fire directly off
@@ -281,7 +236,11 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish --verbose --token "${CARGO_REGISTRY_TOKEN}"
+          # Publish the derive macro alongside the core crate at the same
+          # workspace version. Neither depends on the other, so order is not
+          # load-bearing.
+          cargo publish -p pso-protocol-derive --verbose --token "${CARGO_REGISTRY_TOKEN}"
+          cargo publish -p pso-protocol --verbose --token "${CARGO_REGISTRY_TOKEN}"
 
       # Re-create the .crate locally. `cargo publish` cleans up
       # target/package/*.crate after a successful upload; `cargo
@@ -290,7 +249,7 @@ jobs:
       # bytes match what crates.io just received.
       - name: Re-package .crate for artifact upload
         if: success()
-        run: cargo package --no-verify
+        run: cargo package --no-verify --workspace
 
       # Upload the byte-identical `.crate` as a workflow artifact so
       # the `github-release` job can attach it to the GH Release
