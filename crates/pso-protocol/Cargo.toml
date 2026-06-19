@@ -1,0 +1,35 @@
+[package]
+name        = "pso-protocol"
+version.workspace    = true
+edition.workspace    = true
+authors.workspace    = true
+license.workspace    = true
+repository.workspace = true
+description = "Generic, pluggable consensus primitives for the PSO protocol (curve/hash/signature/KDF are swappable suite parameters)."
+readme      = "README.md"
+keywords    = ["pso", "poseidon", "bn254", "zero-knowledge", "consensus"]
+categories  = ["cryptography"]
+
+[features]
+# Field-encoding impls for alloy ABI scalar types (address / uint256 /
+# bytes32), so consumers can use bare alloy types in entity structs. The
+# impls must live here, next to the trait (orphan rule).
+alloy = ["dep:alloy-primitives"]
+
+[dependencies]
+ark-bn254     = { workspace = true, features = ["curve", "asm"] }
+ark-grumpkin  = { workspace = true, features = ["asm"] }
+ark-ff        = { workspace = true, features = ["asm", "parallel"] }
+ark-ec        = { workspace = true, features = ["parallel"] }
+ark-std       = { workspace = true, features = ["parallel"] }
+ark-serialize = { workspace = true }
+generic-array = { workspace = true }
+pso-poseidon  = { workspace = true }
+blake2        = { workspace = true }
+alloy-primitives = { workspace = true, optional = true }
+thiserror     = { workspace = true }
+zeroize        = { workspace = true }
+zeroize_derive = { workspace = true }
+
+[dev-dependencies]
+ark-std = { workspace = true, features = ["parallel"] }

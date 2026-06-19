@@ -53,7 +53,19 @@ confidence-threshold = 0.93
 multiple-versions = "deny"
 wildcards = "deny"
 deny = []
-skip = []
+# Unavoidable, upstream-blocked crypto-stack version splits: arkworks 0.6
+# pulls the `digest 0.10` family (block-buffer 0.10, crypto-common 0.1,
+# cpufeatures, generic-array 0.14); the optional `alloy` feature pulls the
+# `digest 0.11` family (block-buffer 0.12, crypto-common 0.2); and the codec
+# depends on `generic-array 1.x` directly for type-level key sizing. None can
+# be unified without dropping arkworks, alloy, or the typed-length codec.
+skip = [
+    { crate = "generic-array", reason = "codec uses 1.x; ark's digest-0.10 stack pulls 0.14" },
+    { crate = "digest", reason = "arkworks -> 0.10, alloy -> 0.11" },
+    { crate = "block-buffer", reason = "transitive: digest 0.10 vs 0.11" },
+    { crate = "crypto-common", reason = "transitive: digest 0.10 vs 0.11" },
+    { crate = "cpufeatures", reason = "transitive across the two digest stacks" },
+]
 
 [sources]
 unknown-registry = "deny"
