@@ -6,7 +6,7 @@ resolver = "2"
 # `pso-protocol-derive` companion always ship at the same version. The
 # cocogitto pre-bump hook rewrites the first `^version` line below.
 [workspace.package]
-version    = "0.7.1"
+version     = "0.8.0"
 edition    = "2021"
 authors    = ["PSO Lab"]
 license    = "MIT"
