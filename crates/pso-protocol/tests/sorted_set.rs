@@ -105,3 +105,40 @@ fn sorted_unique_input_succeeds() {
     assert!(hash(1, &[1, 2, 3, 4], &[5, 6, 7]).is_ok());
     assert!(hash(1, &[], &[]).is_ok()); // both empty: `[0]` / `[0]`
 }
+
+/// `sort_set` is the producer-side normaliser: it turns an arbitrary-order
+/// input into exactly the order `SortedSet` asserts, so a producer can never
+/// trip `UnsortedSet` on ordering. Feeding its output to the hash always
+/// succeeds, and any permutation of the same set hashes identically.
+#[test]
+fn sort_set_normalises_for_the_encoder() {
+    use pso_protocol::codec::sort_set;
+    type F = <PsoV1 as pso_protocol::Suite>::Field;
+
+    // Arbitrary order in → ascending out.
+    let sorted = sort_set::<F, u64>(&[30, 10, 20]).unwrap();
+    assert_eq!(sorted, vec![10, 20, 30]);
+
+    // Its output sails through the strict-ascending encoder...
+    let from_unsorted = hash(1, &sort_set::<F, u64>(&[30, 10, 20]).unwrap(), &[]).unwrap();
+    // ...and equals the hash of the already-sorted set (order-independent).
+    assert_eq!(from_unsorted, hash(1, &[10, 20, 30], &[]).unwrap());
+    assert_eq!(
+        from_unsorted,
+        hash(1, &sort_set::<F, u64>(&[20, 30, 10]).unwrap(), &[]).unwrap(),
+    );
+}
+
+/// `sort_set` collapses duplicates — a set is unique by definition — and its
+/// output still sails through the strict-ascending encoder.
+#[test]
+fn sort_set_removes_duplicates() {
+    use pso_protocol::codec::sort_set;
+    type F = <PsoV1 as pso_protocol::Suite>::Field;
+
+    assert_eq!(sort_set::<F, u64>(&[10, 20, 10, 20, 10]).unwrap(), vec![10, 20]);
+    // De-duped output hashes fine, and equals the same set passed cleanly.
+    let deduped = sort_set::<F, u64>(&[30, 10, 10, 20, 30]).unwrap();
+    assert_eq!(deduped, vec![10, 20, 30]);
+    assert_eq!(hash(1, &deduped, &[]).unwrap(), hash(1, &[10, 20, 30], &[]).unwrap());
+}

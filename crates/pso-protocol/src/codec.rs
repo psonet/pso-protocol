@@ -179,6 +179,36 @@ impl<F: PrimeField, T: FieldElement<F>> FieldEncode<F> for SortedSet<'_, T> {
     }
 }
 
+/// Normalise `items` into the canonical set a [`SortedSet`] requires: sorted
+/// ascending by field value, with duplicates removed.
+///
+/// This is the producer-side counterpart to [`SortedSet`]: the encoder
+/// *asserts* the order (and never sorts, to stay in lock-step with the
+/// in-circuit fold), so every producer of an entity (wallet, attester, tests)
+/// must normalise its vector fields first. Calling this is how they do it — the
+/// ordering is defined here, in one place, so a producer can never drift from
+/// the order the precompile / circuit recompute against.
+///
+/// The order is by canonical field *value* (`to_field().into_bigint()`), which
+/// — for the canonical, `< modulus` ids these sets hold — matches a plain
+/// big-endian byte / `uint256` comparison, so it agrees with a contract-side
+/// `require(ids[i] > ids[i-1])`. A set is unique by definition, so repeated
+/// elements are collapsed to one. A non-canonical element is rejected by
+/// [`FieldElement::to_field`]. (Deduping here is a convenience for the producer;
+/// the on-chain `require` + precompile still *reject* duplicates on any path
+/// that bypasses this helper, so a genuine double-reference is caught.)
+pub fn sort_set<F: PrimeField, T: FieldElement<F> + Clone>(items: &[T]) -> Result<Vec<T>, Error> {
+    let mut keyed: Vec<(F::BigInt, &T)> = items
+        .iter()
+        .map(|t| Ok((t.to_field()?.into_bigint(), t)))
+        .collect::<Result<_, Error>>()?;
+    keyed.sort_unstable_by_key(|(k, _)| *k);
+    // After sorting, equal field values are adjacent — collapse each run to its
+    // first element so the result is a true set.
+    keyed.dedup_by(|a, b| a.0 == b.0);
+    Ok(keyed.into_iter().map(|(_, t)| t.clone()).collect())
+}
+
 // ---- containers: encode each element in order ----
 
 impl<F: PrimeField, T: FieldEncode<F> + ?Sized> FieldEncode<F> for &T {
