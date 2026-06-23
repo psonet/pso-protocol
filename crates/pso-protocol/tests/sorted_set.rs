@@ -136,9 +136,15 @@ fn sort_set_removes_duplicates() {
     use pso_protocol::codec::sort_set;
     type F = <PsoV1 as pso_protocol::Suite>::Field;
 
-    assert_eq!(sort_set::<F, u64>(&[10, 20, 10, 20, 10]).unwrap(), vec![10, 20]);
+    assert_eq!(
+        sort_set::<F, u64>(&[10, 20, 10, 20, 10]).unwrap(),
+        vec![10, 20]
+    );
     // De-duped output hashes fine, and equals the same set passed cleanly.
     let deduped = sort_set::<F, u64>(&[30, 10, 10, 20, 30]).unwrap();
     assert_eq!(deduped, vec![10, 20, 30]);
-    assert_eq!(hash(1, &deduped, &[]).unwrap(), hash(1, &[10, 20, 30], &[]).unwrap());
+    assert_eq!(
+        hash(1, &deduped, &[]).unwrap(),
+        hash(1, &[10, 20, 30], &[]).unwrap()
+    );
 }
