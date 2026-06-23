@@ -33,3 +33,7 @@ zeroize_derive = { workspace = true }
 
 [dev-dependencies]
 ark-std = { workspace = true, features = ["parallel"] }
+# The companion derive macro — exercised by the entity-hash set-encoding tests
+# (`tests/sorted_set.rs`). A dev-dep keeps the published crate dependency-free
+# while letting the tests drive `#[derive(Entity)]` end-to-end.
+pso-protocol-derive = { path = "../pso-protocol-derive" }
