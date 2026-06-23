@@ -123,6 +123,92 @@ macro_rules! scalar_field_element {
 }
 scalar_field_element!(u8, u16, u32, u64, u128, bool);
 
+/// An entity vector field viewed as a canonical **set**.
+///
+/// A bare `[T]`/`Vec<T>` [`FieldEncode`] just concatenates its elements (see
+/// below), which is ambiguous for an entity hash: two adjacent vectors
+/// `sr = [a]`, `ar = [b, c]` fold to the *same* preimage as `sr = [a, b]`,
+/// `ar = [c]` (a boundary collision), and the same multiset in a different
+/// order folds to a different hash.
+///
+/// Wrapping a slice in `SortedSet` gives it a `FieldEncode` impl that removes
+/// both ambiguities — so it composes into the same trait as every other field
+/// instead of needing a bespoke call. `#[derive(Entity)]` wraps a `Vec<T>`
+/// body field in this automatically; the underlying `[T]` impl is left as the
+/// plain concatenation for any non-entity use. It is a zero-cost view (a
+/// single `&[T]`).
+pub struct SortedSet<'a, T>(pub &'a [T]);
+
+impl<F: PrimeField, T: FieldElement<F>> FieldEncode<F> for SortedSet<'_, T> {
+    /// Emit `[ len, e₀, e₁, … ]` with the elements strictly ascending by field
+    /// value. The length prefix makes the boundary between two adjacent vectors
+    /// unambiguous; the strict order makes the encoding canonical
+    /// (origin-order–independent) *and* duplicate-free in one check.
+    ///
+    /// It does **not** sort for the caller: the input must already be sorted
+    /// and de-duplicated, and a violation is rejected with
+    /// [`Error::UnsortedSet`]. Requiring sorted input (rather than sorting
+    /// here) keeps this in lock-step with the in-circuit fold, which asserts
+    /// the same `eᵢ < eᵢ₊₁`, and forces every producer (chain, mobile, tests)
+    /// to commit the same canonical order on-chain.
+    fn encode(&self, out: &mut Vec<F>) -> Result<(), Error> {
+        out.push(F::from(self.0.len() as u64));
+        // Field elements are stored in Montgomery form, whose limb order is not
+        // the value order, so the strict-ascending check must compare canonical
+        // big-integer reprs (this is exactly what `ark`'s own `Ord for Fp` does
+        // internally). Convert each element to its `BigInt` once and keep it as
+        // `prev` — `F::BigInt: Ord` via `BigInteger`, so no `Ord` bound on `F`
+        // and no second conversion per comparison.
+        let mut prev: Option<F::BigInt> = None;
+        for item in self.0 {
+            let f = item.to_field()?;
+            let cur = f.into_bigint();
+            if let Some(p) = prev {
+                // Reject anything not *strictly* greater — catches both
+                // unsorted input and duplicate elements in one check.
+                if cur <= p {
+                    return Err(Error::UnsortedSet(
+                        "entity vector field must be strictly ascending by field value (sorted + de-duplicated)".to_string(),
+                    ));
+                }
+            }
+            out.push(f);
+            prev = Some(cur);
+        }
+        Ok(())
+    }
+}
+
+/// Normalise `items` into the canonical set a [`SortedSet`] requires: sorted
+/// ascending by field value, with duplicates removed.
+///
+/// This is the producer-side counterpart to [`SortedSet`]: the encoder
+/// *asserts* the order (and never sorts, to stay in lock-step with the
+/// in-circuit fold), so every producer of an entity (wallet, attester, tests)
+/// must normalise its vector fields first. Calling this is how they do it — the
+/// ordering is defined here, in one place, so a producer can never drift from
+/// the order the precompile / circuit recompute against.
+///
+/// The order is by canonical field *value* (`to_field().into_bigint()`), which
+/// — for the canonical, `< modulus` ids these sets hold — matches a plain
+/// big-endian byte / `uint256` comparison, so it agrees with a contract-side
+/// `require(ids[i] > ids[i-1])`. A set is unique by definition, so repeated
+/// elements are collapsed to one. A non-canonical element is rejected by
+/// [`FieldElement::to_field`]. (Deduping here is a convenience for the producer;
+/// the on-chain `require` + precompile still *reject* duplicates on any path
+/// that bypasses this helper, so a genuine double-reference is caught.)
+pub fn sort_set<F: PrimeField, T: FieldElement<F> + Clone>(items: &[T]) -> Result<Vec<T>, Error> {
+    let mut keyed: Vec<(F::BigInt, &T)> = items
+        .iter()
+        .map(|t| Ok((t.to_field()?.into_bigint(), t)))
+        .collect::<Result<_, Error>>()?;
+    keyed.sort_unstable_by_key(|(k, _)| *k);
+    // After sorting, equal field values are adjacent — collapse each run to its
+    // first element so the result is a true set.
+    keyed.dedup_by(|a, b| a.0 == b.0);
+    Ok(keyed.into_iter().map(|(_, t)| t.clone()).collect())
+}
+
 // ---- containers: encode each element in order ----
 
 impl<F: PrimeField, T: FieldEncode<F> + ?Sized> FieldEncode<F> for &T {

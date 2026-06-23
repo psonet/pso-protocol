@@ -52,6 +52,12 @@ confidence-threshold = 0.93
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# Allow a version-less (`*`) requirement when the dependency is a local path
+# dep — the companion `pso-protocol-derive` is pulled by path as a dev-dep for
+# the entity-hash tests. A literal version would mismatch the path crate after
+# cocogitto's next bump (the pre-bump hook only rewrites the column-0 version),
+# so the path requirement is intentional. Registry wildcards stay banned.
+allow-wildcard-paths = true
 deny = []
 # Unavoidable, upstream-blocked crypto-stack version splits: arkworks 0.6
 # pulls the `digest 0.10` family (block-buffer 0.10, crypto-common 0.1,

@@ -31,6 +31,13 @@ pub enum Error {
     #[error("non-canonical field encoding: {0}")]
     NonCanonical(&'static str),
 
+    /// An entity vector field was not a canonical set: its elements must be
+    /// strictly ascending by field value (sorted, no duplicates) so the
+    /// length-prefixed set encoding is deterministic and unambiguous. The
+    /// caller must pre-sort and de-duplicate the vector.
+    #[error("non-canonical set encoding: {0}")]
+    UnsortedSet(String),
+
     /// A ZK proof backend (generation or verification) failed.
     #[error("zk proof error: {0}")]
     Proof(String),
