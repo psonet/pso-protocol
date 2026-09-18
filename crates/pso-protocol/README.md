@@ -45,7 +45,7 @@ pub trait Suite: 'static {
     fn derive_owner(pk: &Affine<Self::Curve>, nonce: Self::Field) -> Result<Self::Field, Error>;
     fn nft_hash(id: Self::Field, body: &[Self::Field]) -> Result<Self::Field, Error>;
     fn signing_payload(nft_hash: Self::Field, nonce: Self::Field, binding: Self::Field) -> Result<Self::Field, Error>;
-    fn binding(sender: &[u8; 20], commitment_id: &[u8; 32], chain_id: u64) -> Result<Self::Field, Error>;
+    fn binding(sender: &[u8; 20], commitment_id: &[u8; 32], host_chain_id: u64, l2_chain_id: u64) -> Result<Self::Field, Error>;
 }
 ```
 
@@ -71,8 +71,8 @@ drift never reaches the protocol.
 
 ```toml
 [dependencies]
-pso-protocol = "0.8"
-pso-protocol-derive = "0.8"   # for #[derive(Entity)]
+pso-protocol = "0.10"
+pso-protocol-derive = "0.10"   # for #[derive(Entity)]
 ```
 
 ### Protocol formulas
@@ -83,9 +83,12 @@ use pso_protocol::{PsoV1, Suite};
 // Associated functions on the suite (generic over S: Suite); each returns
 // Result<S::Field, Error>. PsoV1 is the production selection.
 let owner   = PsoV1::derive_owner(&pk, nonce)?;                   // H(pk.x, pk.y, nonce)
-let binding = PsoV1::binding(&sender, &commitment_id, chain_id)?; // H([DOMAIN, sender, cid_lo, cid_hi, chain])
+let binding = PsoV1::binding(&sender, &commitment_id, host_chain_id, l2_chain_id)?;
+//            H([DOMAIN, sender, cid_lo, cid_hi, host_chain_id, l2_chain_id])
+//            host_chain_id is the chain that verifies; l2_chain_id the chain
+//            that produced the draft. Equal for a submission that stays put.
 let payload = PsoV1::signing_payload(nft_hash, nonce, binding)?;  // the field the owner signs
-//  sender: &[u8; 20]   commitment_id: &[u8; 32]   chain_id: u64
+//  sender: &[u8; 20]   commitment_id: &[u8; 32]   host_chain_id: u64   l2_chain_id: u64
 ```
 
 ### Entity hashing with `#[derive(Entity)]`
@@ -158,7 +161,7 @@ Releases ship sigstore cosign signatures + SLSA build-provenance attestations fo
 Quick check:
 
 ```sh
-TAG=v0.8.0
+TAG=v0.10.0
 ARTIFACT=pso-protocol-${TAG#v}.crate
 gh release download "$TAG" --repo psonet/pso-protocol \
   --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"

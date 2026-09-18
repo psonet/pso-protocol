@@ -20,8 +20,8 @@ same version:
 
 ```toml
 [dependencies]
-pso-protocol = "0.8"
-pso-protocol-derive = "0.8"   # only if you derive `Entity`
+pso-protocol = "0.10"
+pso-protocol-derive = "0.10"   # only if you derive `Entity`
 ```
 
 ## Verifying releases
@@ -31,7 +31,7 @@ Releases ship sigstore cosign signatures + SLSA build-provenance attestations fo
 Quick check:
 
 ```sh
-TAG=v0.8.0
+TAG=v0.10.0
 ARTIFACT=pso-protocol-${TAG#v}.crate
 gh release download "$TAG" --repo psonet/pso-protocol \
   --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"
