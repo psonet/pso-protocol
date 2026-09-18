@@ -73,6 +73,24 @@ fn binding_matches_the_l1_reference() {
     );
 }
 
+/// `Suite::DOMAIN` leads the binding preimage, so it is not a value this crate
+/// can change on its own any more: the verifying chain folds a number of its
+/// own in that position and compares digests. The two currently agree on 1.
+///
+/// Pinned separately from the vectors above because the failure it guards
+/// against is specific and the generic "regenerate the digest" advice is the
+/// wrong response to it. If this fails, someone bumped the suite version and
+/// every proof this L2 submits will be rejected until the L1 folds the same
+/// number. Coordinate the change; do not adjust this constant to match.
+#[test]
+fn the_version_tag_is_the_one_the_l1_folds() {
+    assert_eq!(
+        PsoV1::DOMAIN,
+        1,
+        "PsoV1::DOMAIN leads the binding preimage and must equal the L1's"
+    );
+}
+
 /// The two ids occupy distinct positions. Were either folded in the other's
 /// place, or one dropped, swapping them would leave the digest unchanged.
 #[test]
