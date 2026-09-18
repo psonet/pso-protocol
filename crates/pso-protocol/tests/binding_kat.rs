@@ -8,13 +8,21 @@
 //! fails first.
 //!
 //! So the expected values below are not this implementation's own output. They
-//! were produced by the L1 reference, `outbe-l2-claims`'
-//! `claims::tribute::binding`, and pasted here. A determinism test cannot catch
-//! a drift that moves both sides at once; these can, because regenerating them
-//! means going to the other implementation and asking it again.
+//! were produced by the L1 implementation, `claims::tribute::binding` in
+//! `crates/outbe-l2-claims` of <https://github.com/outbe/outbe-circuits>, and
+//! pasted here. A determinism test cannot catch a drift that moves both sides
+//! at once; these can, because regenerating them means going to the other
+//! implementation and asking it again:
+//!
+//! ```text
+//! // in a test of that crate
+//! binding(&[0x11; 20], &draft_id, host_chain_id, l2_chain_id)
+//! ```
 //!
 //! Regenerate only when the two sides have agreed to change the formula, and
-//! record what changed in the history rather than editing a digit.
+//! record what changed in the history rather than editing a digit. If one of
+//! these assertions fails and the formula was not meant to change, the bug is
+//! in this repository and the digest is the evidence, not the problem.
 
 use pso_protocol::suite::Suite;
 use pso_protocol::PsoV1;
@@ -47,6 +55,12 @@ fn binding_hex(host_chain_id: u64, l2_chain_id: u64) -> String {
 
 /// Two host/L2 pairs, so a bug that folds one id twice or drops one is visible:
 /// no pair is a permutation of the other and neither shares a value.
+///
+/// The numbers below are frozen inputs to a vector, not configuration. They
+/// resemble the devnet and demo chain ids because they were chosen to look
+/// realistic, and they must NOT be updated to follow either. Changing an input
+/// here invalidates the digest beside it, and the only correct way to restore
+/// it is to ask the L1 implementation again.
 #[test]
 fn binding_matches_the_l1_reference() {
     assert_eq!(

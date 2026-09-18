@@ -136,8 +136,9 @@ pub trait Suite: 'static {
     ///
     /// For a submission that stays on this L2 the two are the same value. This
     /// is a consensus formula shared with the verifying chain: it must stay
-    /// byte-identical to `outbe-l2-claims`' `claims::tribute::binding`, which
-    /// `tests/binding_kat.rs` pins.
+    /// byte-identical to the L1 implementation, `claims::tribute::binding` in
+    /// `crates/outbe-l2-claims` of <https://github.com/outbe/outbe-circuits>,
+    /// which `tests/binding_kat.rs` pins.
     ///
     /// The circuits never recompute this. `binding_hash` reaches them as an
     /// opaque public input that the ownership constraint folds into the signed
