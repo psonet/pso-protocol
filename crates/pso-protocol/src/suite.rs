@@ -121,22 +121,45 @@ pub trait Suite: 'static {
         Self::Hash::hash(&[nft_hash, nonce, binding])
     }
 
-    /// Submission binding `Hash([DOMAIN, sender, cid_lo, cid_hi, chain_id])`
-    /// (Poseidon5 + uint256 limb split in PSO). The leading [`Suite::DOMAIN`]
+    /// Submission binding
+    /// `Hash([DOMAIN, sender, cid_lo, cid_hi, host_chain_id, l2_chain_id])`
+    /// (Poseidon6 + uint256 limb split in PSO). The leading [`Suite::DOMAIN`]
     /// folds the protocol version into the binding, which flows into every
     /// signature ([`Suite::signing_payload`]) and the aggregation public
     /// inputs — so the version is bound into the whole proof/submission path.
+    ///
+    /// Two chain ids, not one. `host_chain_id` is the chain that verifies the
+    /// proof and `l2_chain_id` is the chain that produced the draft. Folding
+    /// both means a proof minted for one L2 does not verify as another L2's
+    /// even under a byte-identical circuit, which a single id could not
+    /// prevent once several L2s register against the same claim.
+    ///
+    /// For a submission that stays on this L2 the two are the same value. This
+    /// is a consensus formula shared with the verifying chain: it must stay
+    /// byte-identical to `outbe-l2-claims`' `claims::tribute::binding`, which
+    /// `tests/binding_kat.rs` pins.
+    ///
+    /// The circuits never recompute this. `binding_hash` reaches them as an
+    /// opaque public input that the ownership constraint folds into the signed
+    /// message, so changing this preimage moves no ACIR and no verifying key.
     fn binding(
         sender: &[u8; 20],
         commitment_id: &[u8; 32],
-        chain_id: u64,
+        host_chain_id: u64,
+        l2_chain_id: u64,
     ) -> Result<Self::Field, Error> {
         let domain = Self::Field::from(Self::DOMAIN);
         let sender_fr = crate::codec::field_from_be_bytes::<Self::Field>(sender);
         // uint256 split into two 128-bit limbs [lo, hi] — the same split
         // consumers apply to any `uint256` entity field.
         let [cid_lo, cid_hi] = crate::codec::u256_limbs_be::<Self::Field>(commitment_id);
-        let chain_fr = Self::Field::from(chain_id);
-        Self::Hash::hash(&[domain, sender_fr, cid_lo, cid_hi, chain_fr])
+        Self::Hash::hash(&[
+            domain,
+            sender_fr,
+            cid_lo,
+            cid_hi,
+            Self::Field::from(host_chain_id),
+            Self::Field::from(l2_chain_id),
+        ])
     }
 }

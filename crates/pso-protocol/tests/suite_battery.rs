@@ -157,8 +157,20 @@ where
     );
 
     // --- binding + KDF are reachable and deterministic ---
-    let binding = S::binding(&[7u8; 20], &[9u8; 32], 1234).unwrap();
-    assert_eq!(binding, S::binding(&[7u8; 20], &[9u8; 32], 1234).unwrap());
+    // Determinism only. That the preimage is the one the verifying chain
+    // recomputes is `tests/binding_kat.rs`, against vectors from the L1
+    // implementation; a determinism check cannot see a drift that moves both
+    // sides at once.
+    let binding = S::binding(&[7u8; 20], &[9u8; 32], 1234, 5678).unwrap();
+    assert_eq!(
+        binding,
+        S::binding(&[7u8; 20], &[9u8; 32], 1234, 5678).unwrap()
+    );
+    assert_ne!(
+        binding,
+        S::binding(&[7u8; 20], &[9u8; 32], 5678, 1234).unwrap(),
+        "the host and L2 chain ids must occupy distinct preimage positions"
+    );
     let k = S::Kdf::derive(&[nonce, owner]).unwrap();
     assert_eq!(
         k,
