@@ -65,12 +65,26 @@ deny = []
 # `digest 0.11` family (block-buffer 0.12, crypto-common 0.2); and the codec
 # depends on `generic-array 1.x` directly for type-level key sizing. None can
 # be unified without dropping arkworks, alloy, or the typed-length codec.
+#
+# `syn` is the same shape but build-time only. `thiserror-impl` and
+# `enum-ordinalize-derive` moved to syn 3; the arkworks proc macros
+# (`ark-ff-asm`, `ark-ff-macros`, `ark-serialize-derive`, `educe`) and this
+# repo's own `pso-protocol-derive` are still on syn 2. Proc-macro crates are
+# compiled for the host and linked into the compiler, not into the artifact,
+# so the duplicate costs build time and nothing else. It unifies when arkworks
+# moves; drop this entry then.
+#
+# Note this repo does not commit `Cargo.lock`, so CI resolves fresh on every
+# run and the nightly cron sees upstream drift the day it lands. That is the
+# point of the cron, but it means entries here appear without a local change —
+# this one did, and `main` had been red since mid-August because of it.
 skip = [
     { crate = "generic-array", reason = "codec uses 1.x; ark's digest-0.10 stack pulls 0.14" },
     { crate = "digest", reason = "arkworks -> 0.10, alloy -> 0.11" },
     { crate = "block-buffer", reason = "transitive: digest 0.10 vs 0.11" },
     { crate = "crypto-common", reason = "transitive: digest 0.10 vs 0.11" },
     { crate = "cpufeatures", reason = "transitive across the two digest stacks" },
+    { crate = "syn", reason = "thiserror-impl/enum-ordinalize on syn 3; arkworks' proc macros still on syn 2" },
 ]
 
 [sources]
