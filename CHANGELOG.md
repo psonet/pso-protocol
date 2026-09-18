@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.10.0 - 2026-09-18
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>fold the L2 chain id into the submission binding - (e465beb) - Anton Velichko
+#### Documentation
+- say who owns the leading tag in the binding - (d1a9d2c) - Anton Velichko
+- correct the published binding signature and name the L1 reference - (644f631) - Anton Velichko
+#### Continuous Integration
+- allow the build-time syn split that turned main red - (0dfddf9) - Anton Velichko
+
+- - -
+
 ## v0.9.0 - 2026-06-23
 #### Features
 - sort_set producer helper for canonical entity vector order - (840f422) - Anton Velichko
