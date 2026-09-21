@@ -26,7 +26,7 @@ below it, so swapping a primitive never touches the protocol logic.
 | ----- | ------ | -------------- |
 | **codec** | `codec` | `Codec` byte conventions + the `FieldElement` / `FieldEncode` encoding seam — how a typed value becomes one or more field elements. |
 | **primitive** | `primitive::{curve, hash, signature, kdf, exchange}` | The swappable crypto traits and their instances: the embedded Grumpkin curve, the Poseidon2 field hash, Grumpkin Schnorr, the KDF, and the key-exchange "consent box". |
-| **protocol** | `protocol::{entity, key, imt, zk}` | The protocol logic — entity hashing, NFT keys/signers, the insertion Merkle tree, and the ZK trait seams — all generic over `S: Suite`. |
+| **protocol** | `protocol::{entity, key, imt, zk, fs_epoch}` | The protocol logic — entity hashing, NFT keys/signers, the insertion Merkle tree, and the ZK trait seams — all generic over `S: Suite`; plus `fs_epoch`, the suite-independent fingerprint-service epoch encoding and keccak-256 digest that the L2 contracts recompute. |
 | **suite** | `suite` (+ `PsoV1` at the crate root) | The `Suite` trait wires one choice per primitive and supplies `derive_owner` / `nft_hash` / `signing_payload` / `binding` as default methods. |
 
 ### What a `Suite` fixes

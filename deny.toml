@@ -61,10 +61,11 @@ allow-wildcard-paths = true
 deny = []
 # Unavoidable, upstream-blocked crypto-stack version splits: arkworks 0.6
 # pulls the `digest 0.10` family (block-buffer 0.10, crypto-common 0.1,
-# cpufeatures, generic-array 0.14); the optional `alloy` feature pulls the
-# `digest 0.11` family (block-buffer 0.12, crypto-common 0.2); and the codec
-# depends on `generic-array 1.x` directly for type-level key sizing. None can
-# be unified without dropping arkworks, alloy, or the typed-length codec.
+# cpufeatures, generic-array 0.14); `sha3 0.11` (and the optional `alloy`
+# feature) pull the `digest 0.11` family (block-buffer 0.12, crypto-common
+# 0.2); and the codec depends on `generic-array 1.x` directly for type-level
+# key sizing. None can be unified without dropping arkworks, sha3/alloy, or
+# the typed-length codec.
 #
 # `syn` is the same shape but build-time only. `thiserror-impl` and
 # `enum-ordinalize-derive` moved to syn 3; the arkworks proc macros
@@ -80,7 +81,7 @@ deny = []
 # this one did, and `main` had been red since mid-August because of it.
 skip = [
     { crate = "generic-array", reason = "codec uses 1.x; ark's digest-0.10 stack pulls 0.14" },
-    { crate = "digest", reason = "arkworks -> 0.10, alloy -> 0.11" },
+    { crate = "digest", reason = "arkworks -> 0.10, sha3/alloy -> 0.11" },
     { crate = "block-buffer", reason = "transitive: digest 0.10 vs 0.11" },
     { crate = "crypto-common", reason = "transitive: digest 0.10 vs 0.11" },
     { crate = "cpufeatures", reason = "transitive across the two digest stacks" },

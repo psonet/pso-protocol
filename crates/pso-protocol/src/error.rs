@@ -1,4 +1,6 @@
-//! Single error type for the generic protocol core.
+//! Crate-level error type for the generic protocol core; module-specific
+//! errors such as [`crate::protocol::fs_epoch::FsEpochError`] convert into it
+//! via `#[from]`.
 
 use thiserror::Error;
 
@@ -46,4 +48,8 @@ pub enum Error {
     /// malformed path).
     #[error("merkle error: {0}")]
     Merkle(String),
+
+    /// A fingerprint-service epoch entry cannot be built or decoded.
+    #[error("epoch encoding: {0}")]
+    Epoch(#[from] crate::protocol::fs_epoch::FsEpochError),
 }
