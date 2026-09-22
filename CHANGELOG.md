@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.11.0 - 2026-09-22
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**fs-epoch**) add canonical fingerprint-service epoch encoding and digest - (dfbf1f6) - Anton Velichko
+
+- - -
+
 ## v0.10.0 - 2026-09-18
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>fold the L2 chain id into the submission binding - (e465beb) - Anton Velichko
