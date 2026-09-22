@@ -10,7 +10,8 @@
 //!   [`PsoV1`] selection lives at the crate root; a test-only `Mock` suite
 //!   lives in the core crate's tests.
 //! - [`protocol`] — entity hashing, ownership proofs, and aggregation,
-//!   all generic over `S: Suite`.
+//!   all generic over `S: Suite`; plus [`protocol::fs_epoch`], the
+//!   suite-independent fingerprint-service epoch encoding and digest.
 //!
 //! `pso-zk-circuits` and `pso-integration` depend on this crate for the
 //! formulas, witness order, and statement types; they provide only the

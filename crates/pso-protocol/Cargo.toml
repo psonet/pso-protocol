@@ -28,6 +28,7 @@ pso-poseidon  = { workspace = true }
 blake2        = { workspace = true }
 alloy-primitives = { workspace = true, optional = true }
 thiserror     = { workspace = true }
+sha3          = { workspace = true }
 zeroize        = { workspace = true }
 zeroize_derive = { workspace = true }
 
@@ -37,3 +38,5 @@ ark-std = { workspace = true, features = ["parallel"] }
 # (`tests/sorted_set.rs`). A dev-dep keeps the published crate dependency-free
 # while letting the tests drive `#[derive(Entity)]` end-to-end.
 pso-protocol-derive = { path = "../pso-protocol-derive" }
+# Reads and writes `tests/fixtures/fs_epoch_parity.json`.
+serde_json = { workspace = true }
