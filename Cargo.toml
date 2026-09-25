@@ -41,3 +41,10 @@ zeroize_derive = { version = "1.4", default-features = false }
 syn         = { version = "2", features = ["full"] }
 quote       = "1"
 proc-macro2 = "1"
+
+# Rustdoc lints. An intra-doc link that stops resolving is a silent docs
+# regression — nothing reads the rendered output, so nothing notices. CI runs
+# `cargo doc` with `-D warnings`, which turns a dead [`Type`] link into a
+# build failure instead.
+[workspace.lints.rustdoc]
+all = "warn"
