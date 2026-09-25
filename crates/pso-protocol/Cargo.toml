@@ -40,3 +40,8 @@ ark-std = { workspace = true, features = ["parallel"] }
 pso-protocol-derive = { path = "../pso-protocol-derive" }
 # Reads and writes `tests/fixtures/fs_epoch_parity.json`.
 serde_json = { workspace = true }
+
+# Inherit [workspace.lints]. Without this the table at the workspace root
+# applies to nothing.
+[lints]
+workspace = true
