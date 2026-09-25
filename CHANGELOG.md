@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.11.1 - 2026-09-25
+#### Bug Fixes
+- (**ci**) print repo-relative paths in the coverage table - (a19dd9a) - Anton Velichko
+- (**ci**) give every repo the same supply-chain job and test runner - (eb9da73) - Anton Velichko
+- (**ci**) grant the coverage job permission to write its PR comment - (948899b) - Anton Velichko
+- (**ci**) add the shared psonet quality gates - (0def5ed) - Anton Velichko
+
+- - -
+
 ## v0.11.0 - 2026-09-22
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**fs-epoch**) add canonical fingerprint-service epoch encoding and digest - (dfbf1f6) - Anton Velichko
